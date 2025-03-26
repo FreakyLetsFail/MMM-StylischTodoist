@@ -779,16 +779,27 @@ module.exports = NodeHelper.create({
         // Setup API routes
         this.setupAPIRoutes();
       }
+      
+      // Initialize directories if they don't exist
+      this.initializeDirectories();
     }
 
     switch (notification) {
       case "CONFIG":
         // Legacy support - map CONFIG to INIT_TODOIST
-        this.initTodoist(payload.identifier || "default", payload);
+        this.initTodoist(payload.identifier || "default", payload.config || payload);
+        // Also immediately fetch tasks after initializing
+        setTimeout(() => {
+          this.refreshTasks(payload.identifier || "default");
+        }, 500);
         break;
         
       case "INIT_TODOIST":
         this.initTodoist(payload.instanceId || payload.identifier || "default", payload.config || payload);
+        // Also immediately fetch tasks after initializing
+        setTimeout(() => {
+          this.refreshTasks(payload.instanceId || payload.identifier || "default");
+        }, 500);
         break;
         
       case "GET_TODOIST_TASKS":
@@ -877,6 +888,27 @@ module.exports = NodeHelper.create({
     
     if (accounts.length === 0) {
       console.warn(`[${this.name}] No accounts configured for ${instanceId}`);
+      
+      // Check if we have cached tasks to show
+      try {
+        const cachedTasksPath = path.join(this.cachePath, `${instanceId}-tasks.json`);
+        if (fs.existsSync(cachedTasksPath)) {
+          const cachedTasks = JSON.parse(fs.readFileSync(cachedTasksPath, "utf8"));
+          console.log(`[${this.name}] No accounts configured, but found ${cachedTasks.length} cached tasks`);
+          
+          // Send cached tasks but also the error
+          this.sendSocketNotification("TODOIST_TASKS", { 
+            instanceId, 
+            tasks: cachedTasks,
+            cached: true,
+            error: "Using cached data - no accounts configured"
+          });
+          return;
+        }
+      } catch (error) {
+        console.error(`[${this.name}] Error checking for cached tasks:`, error);
+      }
+      
       this.sendSocketNotification("TODOIST_TASKS", { 
         instanceId, 
         tasks: [],
@@ -895,26 +927,39 @@ module.exports = NodeHelper.create({
           account.tasks = tasks;
           account.projects = projects;
           account.lastFetched = new Date();
-          return tasks;
+          return { tasks, projects };
         })
         .catch(error => {
           console.error(`[${this.name}] Error fetching data for ${account.name}:`, error);
-          return account.tasks || []; // Return cached tasks if available
+          // Return cached account data if available
+          return { 
+            tasks: account.tasks || [], 
+            projects: account.projects || [] 
+          };
         });
     });
     
     Promise.all(fetchPromises)
       .then(results => {
-        const allTasks = [].concat(...results);
+        // Extract tasks and projects
+        const allTasks = [].concat(...results.map(r => r.tasks));
+        const allProjects = [].concat(...results.map(r => r.projects));
+        
+        // Process tasks according to configuration
         const processedTasks = this.processTasks(allTasks, instance.config);
         
-        console.log(`[${this.name}] Sending ${processedTasks.length} tasks to ${instanceId}`);
+        console.log(`[${this.name}] Sending ${processedTasks.length} tasks and ${allProjects.length} projects to ${instanceId}`);
         
         instance.lastUpdated = new Date();
-        this.sendSocketNotification("TODOIST_TASKS", {
-          instanceId,
-          tasks: processedTasks,
-          lastUpdated: instance.lastUpdated
+        
+        // Send both TODOIST_TASKS and TASKS_UPDATED for compatibility
+        ["TODOIST_TASKS", "TASKS_UPDATED"].forEach(notification => {
+          this.sendSocketNotification(notification, {
+            instanceId,
+            tasks: processedTasks,
+            projects: allProjects,
+            lastUpdated: instance.lastUpdated
+          });
         });
         
         // Cache projects
@@ -927,6 +972,28 @@ module.exports = NodeHelper.create({
       })
       .catch(error => {
         console.error(`[${this.name}] Error processing tasks:`, error);
+        
+        // Check if we have cached tasks to show as fallback
+        try {
+          const cachedTasksPath = path.join(this.cachePath, `${instanceId}-tasks.json`);
+          if (fs.existsSync(cachedTasksPath)) {
+            const cachedTasks = JSON.parse(fs.readFileSync(cachedTasksPath, "utf8"));
+            console.log(`[${this.name}] Error fetching fresh data, falling back to ${cachedTasks.length} cached tasks`);
+            
+            // Send cached tasks with the error notice
+            this.sendSocketNotification("TODOIST_TASKS", { 
+              instanceId, 
+              tasks: cachedTasks,
+              cached: true,
+              error: "Using cached data - " + error.message
+            });
+            return;
+          }
+        } catch (cacheError) {
+          console.error(`[${this.name}] Error checking for cached tasks:`, cacheError);
+        }
+        
+        // If no cached data available, send the error
         this.sendSocketNotification("TODOIST_ERROR", { 
           instanceId, 
           error: error.message 
@@ -1028,14 +1095,36 @@ module.exports = NodeHelper.create({
           Authorization: `Bearer ${account.token}`,
           "Cache-Control": "no-cache"
         }
-      }).then(res => res.ok ? res.json() : []),
+      })
+      .then(res => {
+        if (!res.ok) {
+          console.error(`[${this.name}] Error fetching tasks: ${res.status} ${res.statusText}`);
+          return [];
+        }
+        return res.json();
+      })
+      .catch(error => {
+        console.error(`[${this.name}] Network error fetching tasks:`, error);
+        return [];
+      }),
       
       fetch("https://api.todoist.com/rest/v2/user", {
         headers: { 
           Authorization: `Bearer ${account.token}`,
           "Cache-Control": "no-cache"
         }
-      }).then(res => res.ok ? res.json() : null)
+      })
+      .then(res => {
+        if (!res.ok) {
+          console.error(`[${this.name}] Error fetching user info: ${res.status} ${res.statusText}`);
+          return null;
+        }
+        return res.json();
+      })
+      .catch(error => {
+        console.error(`[${this.name}] Network error fetching user info:`, error);
+        return null;
+      })
     ])
     .then(([tasks, userInfo]) => {
       console.log(`[${this.name}] Fetched ${tasks.length} tasks for ${account.name}`);
@@ -1059,6 +1148,10 @@ module.exports = NodeHelper.create({
           responsible: userInfo?.name || "You"
         };
       });
+    })
+    .catch(error => {
+      console.error(`[${this.name}] Error processing task data:`, error);
+      return [];
     });
   },
 

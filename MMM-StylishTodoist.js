@@ -273,16 +273,32 @@ Module.register("MMM-StylishTodoist", {
     },
   
     scheduleUpdate: function() {
-      setInterval(() => {
-        this.sendSocketNotification("UPDATE_TASKS");
+      // Set up recurring updates with the full payload
+      this.updateTimer = setInterval(() => {
+        this.sendSocketNotification("UPDATE_TASKS", {
+          identifier: this.identifier
+        });
       }, this.config.updateInterval);
+      
+      // Do an immediate update after 1 second
+      setTimeout(() => {
+        this.sendSocketNotification("UPDATE_TASKS", {
+          identifier: this.identifier
+        });
+      }, 1000);
     },
   
     socketNotificationReceived: function(notification, payload) {
+      if (payload && payload.instanceId && payload.instanceId !== this.identifier) {
+        // Skip notifications meant for other instances
+        return;
+      }
+      
       switch (notification) {
         case "TASKS_UPDATED":
-          this.tasks = payload.tasks;
-          this.projects = payload.projects;
+        case "TODOIST_TASKS":
+          this.tasks = payload.tasks || [];
+          this.projects = payload.projects || [];
           this.loaded = true;
           this.error = null;
           this.lastUpdated = new Date();
@@ -290,6 +306,7 @@ Module.register("MMM-StylishTodoist", {
           break;
           
         case "TASKS_ERROR":
+        case "TODOIST_ERROR":
           this.error = payload.error;
           this.updateDom(this.config.fadeSpeed);
           break;
