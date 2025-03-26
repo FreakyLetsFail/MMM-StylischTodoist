@@ -208,6 +208,21 @@
     font-size: 18px;
   }
   
+  .task-avatar {
+    margin-right: 8px;
+    min-width: 30px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .task-avatar img {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--task-color, var(--todoist-theme-color));
+  }
+  
   .task-priority {
     min-width: 18px;
     height: 18px;
@@ -309,6 +324,19 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  
+  /* Person-specific styling */
+  .person-justus {
+    border-left-color: #3498db; /* blue */
+  }
+  
+  .person-marie {
+    border-left-color: #e84c8b; /* pink */
+  }
+  
+  .person-gemeinsam {
+    border-left-color: #9b59b6; /* purple */
   }
   
   /* Animation classes */

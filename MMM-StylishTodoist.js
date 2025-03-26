@@ -32,9 +32,10 @@ Module.register("MMM-StylishTodoist", {
     showDueDate: true,
     showDescription: false,
     showProject: true,
+    showAvatar: true,
     
     // View options
-    groupBy: "date", // "date", "project", "priority", "none"
+    groupBy: "project", // "date", "project", "priority", "none"
     showIcons: true,
     dayLimit: 7,
     showLegend: true,
@@ -151,7 +152,7 @@ Module.register("MMM-StylishTodoist", {
       // No tasks to display
       if (!this.config.accounts || this.config.accounts.length === 0) {
         // No accounts configured
-        wrapper.innerHTML = `<div style="color:yellow">No Todoist accounts configured.<br>Visit http://localhost:8080/MMM-StylishTodoist/setup<br>to add accounts.</div>`;
+        wrapper.innerHTML = `<div style="color:yellow">No Todoist accounts configured.<br>Visit http://localhost:8200/MMM-StylishTodoist/setup<br>to add accounts.</div>`;
         wrapper.className = "MMM-StylishTodoist-wrapper dimmed";
         console.log(`[${this.name}] No accounts configured`);
       } else {

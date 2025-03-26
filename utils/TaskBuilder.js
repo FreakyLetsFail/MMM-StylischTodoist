@@ -321,6 +321,11 @@ class TaskBuilder {
       const taskElement = document.createElement("div");
       taskElement.className = "todoist-task";
       
+      // Add any person-specific classes
+      if (task.person) {
+        taskElement.classList.add(`person-${task.person}`);
+      }
+      
       // Add color coding based on project or priority
       if (this.config.colorizeByProject && task.projectColor) {
         taskElement.style.setProperty("--task-color", this.getTodoistColor(task.projectColor));
@@ -330,8 +335,21 @@ class TaskBuilder {
         taskElement.style.setProperty("--task-color", priorityColor);
       }
       
-      // Add account symbol/icon
-      if (this.config.displaySymbol) {
+      // Add account avatar or symbol/icon
+      if (task.avatar && this.config.showAvatar !== false) {
+        // If we have an avatar URL, use it
+        const avatarContainer = document.createElement("div");
+        avatarContainer.className = "task-avatar";
+        
+        const avatar = document.createElement("img");
+        avatar.src = task.avatar;
+        avatar.alt = task.accountName || "Avatar";
+        avatarContainer.appendChild(avatar);
+        
+        taskElement.appendChild(avatarContainer);
+      } 
+      // Fall back to symbol if no avatar or displaySymbol is true
+      else if (this.config.displaySymbol) {
         const symbolContainer = document.createElement("div");
         symbolContainer.className = "task-symbol";
         

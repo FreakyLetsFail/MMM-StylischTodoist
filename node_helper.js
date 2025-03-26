@@ -27,7 +27,7 @@ module.exports = NodeHelper.create({
       fs.mkdirSync(this.storagePath, { recursive: true });
     }
     
-    // Initialize express app for the setup UI
+    // Initialize express app for the setup UI with custom port 8200
     this.expressApp = express();
     this.expressApp.use(bodyParser.json());
     this.expressApp.use(bodyParser.urlencoded({ extended: true }));
@@ -525,7 +525,7 @@ module.exports = NodeHelper.create({
         // Flatten tasks from all accounts
         let allTasks = [].concat(...results);
         
-        // Sort tasks by date (earlier tasks first)
+        // First sort tasks with due date to the top
         allTasks.sort((a, b) => {
           // Tasks without due date go to the end
           if (!a.due && !b.due) return 0;
@@ -534,6 +534,19 @@ module.exports = NodeHelper.create({
           
           return moment(a.due.date).valueOf() - moment(b.due.date).valueOf();
         });
+        
+        // Then sort to make sure projects are grouped together
+        const byProject = {};
+        allTasks.forEach(task => {
+          const projectId = task.project_id || "no_project";
+          if (!byProject[projectId]) {
+            byProject[projectId] = [];
+          }
+          byProject[projectId].push(task);
+        });
+        
+        // Flatten keeping projects together
+        allTasks = Object.values(byProject).flat();
         
         // Filter tasks based on config
         allTasks = this.filterTasks(allTasks, config);
@@ -577,14 +590,31 @@ module.exports = NodeHelper.create({
       }
     };
     
-    return fetch("https://api.todoist.com/rest/v2/tasks", fetchOptions)
+    // First fetch user info to get avatar
+    const userPromise = fetch("https://api.todoist.com/rest/v2/user", fetchOptions)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
       })
-      .then(tasks => {
+      .catch(error => {
+        console.error(`[MMM-StylishTodoist] Error fetching user info for account ${account.name}:`, error);
+        return null; // Return null if we can't fetch user info
+      });
+    
+    // Then fetch tasks
+    const tasksPromise = fetch("https://api.todoist.com/rest/v2/tasks", fetchOptions)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      });
+    
+    // Combine the results
+    return Promise.all([userPromise, tasksPromise])
+      .then(([userInfo, tasks]) => {
         // Enhance tasks with account information
         return tasks.map(task => {
           // Find project information
@@ -600,7 +630,10 @@ module.exports = NodeHelper.create({
             accountCategory: account.category,
             accountColor: account.color,
             projectName: project.name,
-            projectColor: project.color
+            projectColor: project.color,
+            // Add user avatar URL if available
+            avatar: userInfo ? userInfo.avatar_url : null,
+            person: account.person || "default"
           };
         });
       });
