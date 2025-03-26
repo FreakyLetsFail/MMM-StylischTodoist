@@ -1447,20 +1447,22 @@
         
         const data = await response.json();
         if (data.success) {
-          if (data.settings.updateInterval) {
-            document.getElementById('update-interval').value = data.settings.updateInterval;
+          const settings = data.data || {}; // Use data.data instead of data.settings
+          
+          if (settings.updateInterval) {
+            document.getElementById('update-interval').value = settings.updateInterval;
           }
           
-          if (data.settings.apiVersion) {
-            document.getElementById('api-version').value = data.settings.apiVersion;
+          if (settings.apiVersion) {
+            document.getElementById('api-version').value = settings.apiVersion;
           }
           
-          if (data.settings.fadeSpeed) {
-            document.getElementById('fade-speed').value = data.settings.fadeSpeed;
+          if (settings.fadeSpeed) {
+            document.getElementById('fade-speed').value = settings.fadeSpeed;
           }
           
-          if (data.settings.maximumEntries) {
-            document.getElementById('maximum-entries').value = data.settings.maximumEntries;
+          if (settings.maximumEntries) {
+            document.getElementById('maximum-entries').value = settings.maximumEntries;
           }
         } else {
           throw new Error(data.error || 'Unknown error');
@@ -1768,8 +1770,8 @@
           
           let projectSection = '';
           
-          // Fixed showProjectHeaders variable
-          const showProjectHeaders = document.getElementById("showDividers")?.checked || true;
+          // Get project headers setting
+          const showProjectHeaders = document.getElementById("show-project-headers")?.checked || true;
           
           if (showProjectHeaders) {
             projectSection += `
@@ -1780,6 +1782,8 @@
             `;
           }
           
+          // Get dividers setting from form
+          const showDividers = document.getElementById("show-dividers")?.checked || true;
           if (showDividers) {
             projectSection += `
               <div style="height: 1px; background: linear-gradient(to right, transparent, ${projectColor}, transparent); margin: 8px 0 12px; opacity: 0.3;"></div>
