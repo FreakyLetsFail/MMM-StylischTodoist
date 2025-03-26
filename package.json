@@ -1,36 +1,34 @@
 {
-    "name": "mmm-stylish-todoist",
-    "version": "1.0.0",
-    "description": "A stylish, minimalist Todoist tasks module for MagicMirror² with multi-account support",
+    "name": "MMM-StylishTodoist",
+    "version": "2.1.0",
+    "description": "Enhanced Todoist module for MagicMirror with project grouping, avatars and advanced configuration",
     "main": "MMM-StylishTodoist.js",
+    "scripts": {
+      "preinstall": "npm install node-fetch@2.6.7 moment",
+      "setup": "echo 'Setup available at http://localhost:8080/MMM-StylishTodoist/setup.html'",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [
+      "MagicMirror",
+      "Todoist",
+      "productivity",
+      "tasks",
+      "project management"
+    ],
+    "author": "Your Name",
+    "license": "MIT",
+    "dependencies": {
+      "node-fetch": "^2.6.7",
+      "moment": "^2.29.1",
+      "express": "^4.17.1",
+      "body-parser": "^1.19.0"
+    },
     "repository": {
       "type": "git",
       "url": "git+https://github.com/yourusername/MMM-StylishTodoist.git"
     },
-    "keywords": [
-      "MagicMirror",
-      "todoist",
-      "tasks",
-      "productivity",
-      "scheduler"
-    ],
-    "author": {
-      "name": "Your Name",
-      "email": "your.email@example.com",
-      "url": "https://yourwebsite.com"
-    },
-    "license": "MIT",
     "bugs": {
       "url": "https://github.com/yourusername/MMM-StylishTodoist/issues"
     },
-    "homepage": "https://github.com/yourusername/MMM-StylishTodoist#readme",
-    "scripts": {
-      "setup": "echo 'Open browser at http://localhost:8080/MMM-StylishTodoist/setup'"
-    },
-    "dependencies": {
-      "express": "^4.17.1",
-      "body-parser": "^1.19.0",
-      "moment": "^2.29.1",
-      "node-fetch": "^2.6.7"
-    }
+    "homepage": "https://github.com/yourusername/MMM-StylishTodoist#readme"
   }

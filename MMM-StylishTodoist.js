@@ -1,307 +1,270 @@
-/*
- * MMM-StylishTodoist
- * MIT license
- *
- * A stylish, minimalistic Todoist tasks module for MagicMirror²
- * Based on MMM-StylishCalendar design
- */
-
-"use strict";
-
 Module.register("MMM-StylishTodoist", {
-  defaults: {
-    name: "MMM-StylishTodoist",
-    
-    // Todoist configuration
-    accounts: [],
-    maximumEntries: 10,
-    displaySymbol: true,
-    defaultSymbol: "task",
-    maxTitleLength: 50,
-    sortType: "date", // "date", "priority", "project"
-    showCompleted: false,
-    showOverdue: true,
-    
-    // Appearance
-    animateIn: true,
-    fadeAnimations: true,
-    textAnimations: true,
-    transitionAnimations: true,
-    colorizeByProject: true,
-    roundedCorners: true,
-    showDueDate: true,
-    showDescription: false,
-    showProject: true,
-    showAvatar: true,
-    
-    // View options
-    groupBy: "project", // "date", "project", "priority", "none"
-    showIcons: true,
-    dayLimit: 7,
-    showLegend: true,
-    
-    // Locale settings - defaults to system locale
-    language: config.language,
-    dateFormat: "MMM Do",
-    
-    // Update intervals (seconds)
-    updateInterval: 60,
-    updateIntervalHidden: 180,
-    
-    // Advanced theming
-    themeColor: "#e84c3d",
-    experimentalCSSOverridesForMM2: false,
-  },
-
-  start: function() {
-    this.logBadge();
-    
-    this.loaded = false;
-    this.tasks = [];
-    this.isHidden = false;
-    this.currentIntervalId = null;
-    this.firstFetch = true;
-    
-    // Make sure update interval is reasonable (default 60 seconds)
-    if (!this.config.updateInterval || this.config.updateInterval < 30) {
-      this.config.updateInterval = 60;
-    }
-    
-    this.moduleVersion = "1.0.0";
-    
-    // Create stable ID for this instance based on module position
-    const positionKey = this.data.position || "unknown";
-    this.instanceId = `mm-stylish-todoist-${positionKey.replace("_", "-")}`;
-    console.log(`[${this.name}] Starting module with instance ID: ${this.instanceId}`);
-    
-    // Try to load accounts from config if provided
-    if (this.config.accounts && this.config.accounts.length === 0) {
-      console.log(`[${this.name}] No accounts in config, checking for added accounts via setup UI`);
+    defaults: {
+      updateInterval: 10 * 60 * 1000,
+      maximumEntries: 30,
+      fadeSpeed: 3000,
+      sortBy: "due_date",
+      groupBy: "project",
+      showProjectHeaders: true,
+      showDividers: true,
+      showAvatars: true,
+      showPriority: true,
+      themeColor: "#E84C3D",
+      dateFormat: "DD.MM.YYYY",
+      projects: [],
+      customProjectLimits: {},
+      dueTasksLimit: 7,
+      apiVersion: "v2"
+    },
+  
+    requiresVersion: "2.15.0",
+  
+    start: function() {
+      Log.info(`Starting module: ${this.name}`);
+      this.tasks = [];
+      this.projects = [];
+      this.loaded = false;
+      this.error = null;
+      this.lastUpdated = null;
+      this.sendSocketNotification("CONFIG", this.config);
+      this.scheduleUpdate();
+    },
+  
+    getStyles: function() {
+      return [
+        "MMM-StylishTodoist.css",
+        "font-awesome.css",
+        "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+      ];
+    },
+  
+    getScripts: function() {
+      return ["moment.js"];
+    },
+  
+    getTranslations: function() {
+      return {
+        en: "translations/en.json",
+        de: "translations/de.json"
+      };
+    },
+  
+    getDom: function() {
+      const wrapper = document.createElement("div");
+      wrapper.className = "todoist-wrapper";
       
-      // Try to load hardcoded accounts for instance ID if it exists
-      try {
-        // This is a temporary fix - we hard-code known accounts
-        this.config.accounts = [
-          {
-            name: "Personal",
-            token: "YOUR_TODOIST_API_TOKEN_HERE",
-            symbol: "user",
-            color: "#e84c3d",
-            category: "personal",
-          },
-          // You can add more accounts here
-          // {
-          //   name: "Work",
-          //   token: "YOUR_WORK_TODOIST_API_TOKEN",
-          //   symbol: "briefcase",
-          //   color: "#4287f5",
-          //   category: "work",
-          // }
-        ];
-        console.log(`[${this.name}] Added ${this.config.accounts.length} hardcoded accounts for testing`);
-      } catch (e) {
-        console.error(`[${this.name}] Error adding hardcoded accounts:`, e);
+      if (this.error) {
+        wrapper.innerHTML = this.translate("ERROR_LOADING");
+        return wrapper;
       }
-    }
-    
-    // Send credentials to backend and start update cycle
-    this.sendConfig();
-    this.updateTodoistTasks();
-    this.scheduleUpdate();
-    
-    // Setup some useful CSS variables
-    this.root = document.querySelector(":root");
-    this.setupThemeColors();
-  },
   
-  getTranslations: function() {
-    return {
-      en: "translations/en.json",
-      de: "translations/de.json",
-    };
-  },
+      if (!this.loaded) {
+        wrapper.innerHTML = `<div class="loading">${this.translate("LOADING")}...</div>`;
+        return wrapper;
+      }
   
-  getScripts: function() {
-    return [
-      "moment.js",
-      this.file("utils/TaskBuilder.js")
-    ];
-  },
+      // Header
+      const header = document.createElement("div");
+      header.className = "todoist-header";
+      header.innerHTML = `
+        <div class="title">
+          <i class="fas fa-tasks"></i>
+          <span>${this.translate("TODOIST_TASKS")}</span>
+        </div>
+        ${this.lastUpdated ? `<div class="updated">${this.translate("UPDATED")}: ${moment(this.lastUpdated).format(this.config.dateFormat + " HH:mm")}</div>` : ""}
+      `;
+      wrapper.appendChild(header);
   
-  getStyles: function() {
-    return [
-      this.file("css/MMM-StylishTodoist.css"),
-      "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
-    ];
-  },
-  
-  getDom: function() {
-    // Create main wrapper with module styling
-    const wrapper = document.createElement("div");
-    wrapper.className = "MMM-StylishTodoist-wrapper";
-    
-    if (!this.loaded) {
-      // Show loading message
-      wrapper.innerHTML = this.translate("LOADING");
-      wrapper.className = "MMM-StylishTodoist-wrapper dimmed";
-      console.log(`[${this.name}] Tasks loading - awaiting tasks from backend`);
+      // Content
+      const content = document.createElement("div");
+      content.className = "todoist-content";
       
-      // Check for API token for troubleshooting
-      if (this.config.accounts && this.config.accounts.length > 0) {
-        const tokensSummary = this.config.accounts.map(acc => {
-          return `${acc.name}: ${acc.token ? 'Token present' : 'No token!'}`;
-        }).join(', ');
-        console.log(`[${this.name}] Current accounts configuration: ${tokensSummary}`);
+      // Due tasks section
+      const dueTasks = this.getDueTasks();
+      if (dueTasks.length > 0) {
+        content.appendChild(this.buildSection("DUE_TASKS", dueTasks));
+      }
+  
+      // Projects sections
+      if (this.config.groupBy === "project") {
+        const projects = this.getGroupedProjects();
+        projects.forEach(project => {
+          content.appendChild(this.buildProjectSection(project));
+        });
       } else {
-        console.log(`[${this.name}] No accounts configured in the config`);
+        // Other grouping methods
+        content.appendChild(this.buildSection("ALL_TASKS", this.tasks));
       }
-      
-      return wrapper;
-    }
-    
-    if (this.tasks.length === 0) {
-      // No tasks to display
-      if (!this.config.accounts || this.config.accounts.length === 0) {
-        // No accounts configured
-        wrapper.innerHTML = `<div style="color:yellow">No Todoist accounts configured.<br>Visit http://localhost:8200/MMM-StylishTodoist/setup<br>to add accounts.</div>`;
-        wrapper.className = "MMM-StylishTodoist-wrapper dimmed";
-        console.log(`[${this.name}] No accounts configured`);
-      } else {
-        // Accounts configured but no tasks
-        wrapper.innerHTML = this.translate("NO_TASKS");
-        wrapper.className = "MMM-StylishTodoist-wrapper dimmed";
-        console.log(`[${this.name}] No tasks to display - ${this.config.accounts.length} accounts but tasks array is empty`);
-      }
-      return wrapper;
-    }
-    
-    console.log(`[${this.name}] Rendering ${this.tasks.length} tasks`);
-    
-    // Build tasks based on selected grouping
-    const tasksDom = this.builder.buildTaskList(this.tasks, this.config);
-    wrapper.appendChild(tasksDom);
-    
-    return wrapper;
-  },
   
-  socketNotificationReceived: function(notification, payload) {
-    if (notification === "TODOIST_TASKS") {
-      if (payload.instanceId === this.instanceId) {
-        console.log(`[${this.name}] Received ${payload.tasks.length} tasks from backend`);
-        this.tasks = payload.tasks;
-        this.loaded = true;
-        this.updateDom();
-      }
-    } else if (notification === "TODOIST_UPDATED") {
-      if (payload.instanceId === this.instanceId) {
-        console.log(`[${this.name}] Todoist config updated with ${payload.accounts.length} accounts`);
-        this.config.accounts = payload.accounts;
-        this.sendConfig();
-        this.updateTodoistTasks();
-      }
-    } else if (notification === "SETTINGS_UPDATED") {
-      if (payload.instanceId === this.instanceId) {
-        if (payload.settings.maximumEntries) {
-          this.config.maximumEntries = payload.settings.maximumEntries;
+      wrapper.appendChild(content);
+      return wrapper;
+    },
+  
+    getDueTasks: function() {
+      return this.tasks
+        .filter(task => task.due)
+        .sort((a, b) => moment(a.due.date).diff(moment(b.due.date)))
+        .slice(0, this.config.dueTasksLimit);
+    },
+  
+    getGroupedProjects: function() {
+      const projectMap = {};
+      
+      this.tasks.forEach(task => {
+        if (!task.due) {
+          const projectId = task.project_id;
+          if (!projectMap[projectId]) {
+            projectMap[projectId] = {
+              id: projectId,
+              name: this.getProjectName(projectId),
+              tasks: []
+            };
+          }
+          projectMap[projectId].tasks.push(task);
         }
-        this.sendConfig();
-        this.updateTodoistTasks();
+      });
+  
+      // Apply project limits
+      return Object.values(projectMap)
+        .filter(project => 
+          this.config.projects.length === 0 || 
+          this.config.projects.includes(project.id)
+        )
+        .map(project => ({
+          ...project,
+          tasks: project.tasks.slice(0, this.config.customProjectLimits[project.id] || this.config.maximumEntries)
+        }));
+    },
+  
+    getProjectName: function(projectId) {
+      const project = this.projects.find(p => p.id === projectId);
+      return project ? project.name : `Project ${projectId}`;
+    },
+  
+    buildSection: function(titleKey, tasks) {
+      const section = document.createElement("div");
+      section.className = "todoist-section";
+      
+      const header = document.createElement("div");
+      header.className = "section-header";
+      header.textContent = this.translate(titleKey);
+      section.appendChild(header);
+  
+      const taskList = document.createElement("div");
+      taskList.className = "task-list";
+      tasks.forEach(task => taskList.appendChild(this.buildTaskElement(task)));
+      section.appendChild(taskList);
+  
+      return section;
+    },
+  
+    buildProjectSection: function(project) {
+      const section = document.createElement("div");
+      section.className = "todoist-section project-section";
+      
+      // Project header
+      const header = document.createElement("div");
+      header.className = "project-header";
+      header.innerHTML = `
+        <div class="project-name">${project.name}</div>
+        <div class="project-task-count">${project.tasks.length} ${this.translate("TASKS")}</div>
+      `;
+      section.appendChild(header);
+  
+      // Divider
+      if (this.config.showDividers) {
+        const divider = document.createElement("div");
+        divider.className = "project-divider";
+        section.appendChild(divider);
+      }
+  
+      // Tasks
+      const taskList = document.createElement("div");
+      taskList.className = "task-list";
+      project.tasks.forEach(task => taskList.appendChild(this.buildTaskElement(task)));
+      section.appendChild(taskList);
+  
+      return section;
+    },
+  
+    buildTaskElement: function(task) {
+      const taskEl = document.createElement("div");
+      taskEl.className = `task ${task.priority > 1 ? `priority-${task.priority}` : ""}`;
+      
+      // Avatar
+      if (this.config.showAvatars && task.responsible_uid) {
+        const avatar = document.createElement("img");
+        avatar.className = "task-avatar";
+        avatar.src = `https://todoist.com/api/${this.config.apiVersion}/users/${task.responsible_uid}/avatar`;
+        avatar.onerror = () => avatar.style.display = "none";
+        taskEl.appendChild(avatar);
+      }
+  
+      // Content
+      const content = document.createElement("div");
+      content.className = "task-content";
+      
+      // Priority
+      if (this.config.showPriority && task.priority > 1) {
+        const priority = document.createElement("div");
+        priority.className = "task-priority";
+        priority.innerHTML = `<i class="fas fa-exclamation-circle"></i>`;
+        content.appendChild(priority);
+      }
+  
+      // Text
+      const text = document.createElement("div");
+      text.className = "task-text";
+      text.textContent = task.content;
+      content.appendChild(text);
+  
+      // Due date
+      if (task.due) {
+        const due = document.createElement("div");
+        due.className = "task-due";
+        
+        const dueDate = moment(task.due.date);
+        let dueText = dueDate.format(this.config.dateFormat);
+        
+        if (dueDate.isSame(moment(), 'day')) {
+          dueText = this.translate("TODAY");
+          due.classList.add("due-today");
+        } else if (dueDate.isSame(moment().add(1, 'days'), 'day')) {
+          dueText = this.translate("TOMORROW");
+        } else if (dueDate.isBefore(moment(), 'day')) {
+          dueText = this.translate("OVERDUE");
+          due.classList.add("due-overdue");
+        }
+        
+        due.textContent = dueText;
+        content.appendChild(due);
+      }
+  
+      taskEl.appendChild(content);
+      return taskEl;
+    },
+  
+    scheduleUpdate: function() {
+      setInterval(() => {
+        this.sendSocketNotification("UPDATE_TASKS");
+      }, this.config.updateInterval);
+    },
+  
+    socketNotificationReceived: function(notification, payload) {
+      switch (notification) {
+        case "TASKS_UPDATED":
+          this.tasks = payload.tasks;
+          this.projects = payload.projects;
+          this.loaded = true;
+          this.error = null;
+          this.lastUpdated = new Date();
+          this.updateDom(this.config.fadeSpeed);
+          break;
+          
+        case "TASKS_ERROR":
+          this.error = payload.error;
+          this.updateDom(this.config.fadeSpeed);
+          break;
       }
     }
-  },
-  
-  notificationReceived: function(notification, payload, sender) {
-    if (notification === "MODULE_DOM_CREATED") {
-      this.builder = new TaskBuilder(
-        this.translate,
-        this.config
-      );
-    } else if (notification === "TODOIST_TASKS") {
-      this.tasks = payload;
-      this.loaded = true;
-      this.updateDom();
-    }
-  },
-  
-  suspend: function() {
-    this.isHidden = true;
-    this.scheduleUpdate();
-  },
-  
-  resume: function() {
-    this.isHidden = false;
-    this.scheduleUpdate();
-    this.updateDom();
-  },
-  
-  /* Helper Methods */
-  
-  scheduleUpdate: function() {
-    const self = this;
-    clearInterval(this.currentIntervalId);
-    
-    // Interval depends on whether the module is hidden
-    const interval = this.isHidden 
-      ? this.config.updateIntervalHidden 
-      : this.config.updateInterval;
-    
-    console.log(`[${this.name}] Scheduling updates every ${interval} seconds`);
-    
-    this.currentIntervalId = setInterval(function() {
-      console.log(`[${self.name}] Performing scheduled update...`);
-      self.updateTodoistTasks();
-    }, interval * 1000);
-  },
-  
-  updateTodoistTasks: function() {
-    this.sendSocketNotification("GET_TODOIST_TASKS", {
-      instanceId: this.instanceId,
-      config: this.config
-    });
-  },
-  
-  sendConfig: function() {
-    this.sendSocketNotification("INIT_TODOIST", {
-      instanceId: this.instanceId,
-      config: this.config
-    });
-  },
-  
-  setupThemeColors: function() {
-    const color = this.config.themeColor;
-    
-    // Set main theme color
-    this.root.style.setProperty("--todoist-theme-color", color);
-    
-    // Calculate variants
-    this.root.style.setProperty("--todoist-theme-color-light", this.lightenColor(color, 20));
-    this.root.style.setProperty("--todoist-theme-color-dark", this.darkenColor(color, 20));
-  },
-  
-  lightenColor: function(color, percent) {
-    const num = parseInt(color.replace("#", ""), 16);
-    const amt = Math.round(2.55 * percent);
-    const R = (num >> 16) + amt;
-    const G = (num >> 8 & 0x00FF) + amt;
-    const B = (num & 0x0000FF) + amt;
-    
-    return "#" + (
-      0x1000000 + 
-      (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 + 
-      (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 + 
-      (B < 255 ? B < 1 ? 0 : B : 255)
-    ).toString(16).slice(1);
-  },
-  
-  darkenColor: function(color, percent) {
-    return this.lightenColor(color, -percent);
-  },
-  
-  logBadge: function() {
-    console.log(
-      ` ⠖ %c MMM-StylishTodoist %c ${this.moduleVersion}`,
-      "background-color: #555; color: #fff; margin: 0.4em 0em 0.4em 0.4em; padding: 5px 5px 5px 5px; border-radius: 7px 0 0 7px; font-family: DejaVu Sans, Verdana, Geneva, sans-serif;",
-      "background-color: #e84c3d; color: #fff; margin: 0.4em 0.4em 0.4em 0em; padding: 5px 5px 5px 5px; border-radius: 0 7px 7px 0; font-family: DejaVu Sans, Verdana, Geneva, sans-serif; text-shadow: 0 1px 0 rgba(1, 1, 1, 0.3)"
-    );
-  }
-});
+  });
