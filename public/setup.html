@@ -1,741 +1,4 @@
-<i class="fas fa-save"></i>
-              Save Changes
-            </button>
-          </div>
-        `;
-        
-        // Add event listeners to the form buttons
-        editForm.querySelector('[data-action="cancel"]').addEventListener('click', function() {
-          item.classList.remove('editing');
-        });
-        
-        editForm.querySelector('[data-action="save"]').addEventListener('click', function() {
-          const nameInput = editForm.querySelector('[name="edit-name"]');
-          const categorySelect = editForm.querySelector('[name="edit-category"]');
-          const symbolSelect = editForm.querySelector('[name="edit-symbol"]');
-          const colorInput = editForm.querySelector('[name="edit-color"]');
-          const personSelect = editForm.querySelector('[name="edit-person"]:checked');
-          
-          const updatedData = {
-            token: account.token,
-            name: nameInput.value,
-            category: categorySelect.value,
-            symbol: symbolSelect.value,
-            color: colorInput.value,
-            person: personSelect ? personSelect.value : (account.person || 'justus')
-          };
-          
-          // Send update request
-          updateAccount(updatedData, item);
-        });
-        
-        // Add all elements to the item
-        item.appendChild(info);
-        item.appendChild(editForm);
-        
-        return item;
-      }
-      
-      // Delete account function
-      function deleteAccount(token) {
-        const encodedToken = encodeURIComponent(token);
-        
-        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}/${encodedToken}`, {
-          method: 'DELETE'
-        })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              // Remove from UI
-              const item = accountList.querySelector(`.account-item[data-token="${token}"]`);
-              if (item) {
-                item.remove();
-              }
-              
-              // Check if no accounts left
-              if (accountList.querySelectorAll('.account-item').length === 0) {
-                noAccounts.classList.remove('hidden');
-              }
-            } else {
-              alert('Error deleting account: ' + (data.error || 'Unknown error'));
-            }
-          })
-          .catch(error => {
-            console.error('Error deleting account:', error);
-            alert('Connection error. Please try again later.');
-          });
-      }
-      
-      // Update account function
-      function updateAccount(accountData, itemElement) {
-        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(accountData)
-        })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              // Exit edit mode
-              itemElement.classList.remove('editing');
-              
-              // Reload accounts to show updated data
-              loadAccounts();
-            } else {
-              alert('Error updating account: ' + (data.error || 'Unknown error'));
-            }
-          })
-          .catch(error => {
-            console.error('Error updating account:', error);
-            alert('Connection error. Please try again later.');
-          });
-      }
-      
-      // Initialize by loading settings
-      fetch(`/MMM-StylishTodoist/api/settings/${instanceId}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data.success && data.settings) {
-            settings = data.settings;
-            maxEntries.value = settings.maximumEntries || 10;
-          }
-        })
-        .catch(error => {
-          console.error('Error loading settings:', error);
-        });
-    });
-  </script>
-</body>
-</html>          // Toggle active class on tabs
-          tabs.forEach(t => t.classList.remove('active'));
-          this.classList.add('active');
-          
-          // Show corresponding tab content
-          tabContents.forEach(content => content.classList.remove('active'));
-          document.getElementById(this.dataset.tab).classList.add('active');
-        });
-      });
-      
-      // Entry count controls
-      decreaseEntries.addEventListener('click', function() {
-        const currentValue = parseInt(maxEntries.value);
-        if (currentValue > 1) {
-          maxEntries.value = currentValue - 1;
-        }
-      });
-      
-      increaseEntries.addEventListener('click', function() {
-        const currentValue = parseInt(maxEntries.value);
-        if (currentValue < 50) {
-          maxEntries.value = currentValue + 1;
-        }
-      });
-      
-      // Save settings
-      saveSettings.addEventListener('click', function() {
-        settings.maximumEntries = parseInt(maxEntries.value);
-        
-        // Save settings via API here
-        fetch(`/MMM-StylishTodoist/api/settings/${instanceId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            maximumEntries: settings.maximumEntries
-          })
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            settingsSuccessMessage.style.display = 'block';
-            
-            // Hide success message after 3 seconds
-            setTimeout(() => {
-              settingsSuccessMessage.style.display = 'none';
-            }, 3000);
-          } else {
-            settingsErrorMessage.textContent = data.error || 'Unknown error occurred.';
-            settingsErrorMessage.style.display = 'block';
-          }
-        })
-        .catch(error => {
-          console.error('Error saving settings:', error);
-          settingsErrorMessage.textContent = 'Connection error. Please try again later.';
-          settingsErrorMessage.style.display = 'block';
-        });
-      });
-      
-      // Delete account confirmation
-      cancelDelete.addEventListener('click', function() {
-        deleteModal.style.display = 'none';
-        currentDeleteToken = null;
-      });
-      
-      confirmDelete.addEventListener('click', function() {
-        if (currentDeleteToken) {
-          deleteAccount(currentDeleteToken);
-        }
-        deleteModal.style.display = 'none';
-      });
-      
-      // Form submission for adding account
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const accountName = document.getElementById('account-name').value;
-        const accountToken = document.getElementById('account-token').value;
-        const accountCategory = document.getElementById('account-category').value;
-        const customCategory = document.getElementById('custom-category').value;
-        const accountSymbol = document.getElementById('account-symbol').value;
-        const accountColor = document.getElementById('account-color').value;
-        
-        // Get selected person
-        const personRadios = document.getElementsByName('person');
-        let selectedPerson = 'justus'; // Default
-        for (const radio of personRadios) {
-          if (radio.checked) {
-            selectedPerson = radio.value;
-            break;
-          }
-        }
-        
-        // Determine final category value
-        const finalCategory = accountCategory === 'custom' ? customCategory : accountCategory;
-        
-        // Prepare data
-        const data = {
-          name: accountName,
-          token: accountToken,
-          category: finalCategory,
-          symbol: accountSymbol,
-          color: accountColor,
-          person: selectedPerson
-        };
-        
-        // Send to API
-        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(data)
-        })
-        .then(response => response.json())
-        .then(data => {
-          if (data.success) {
-            // Show success message
-            successMessage.style.display = 'block';
-            errorMessage.style.display = 'none';
-            
-            // Reset form
-            form.reset();
-            customCategoryGroup.classList.add('hidden');
-            
-            // Reset icon preview
-            iconPreview.innerHTML = `
-              <svg viewBox="0 0 24 24" width="24" height="24">
-                <path fill="currentColor" d="${iconPaths.task}"></path>
-              </svg>
-            `;
-            
-            // Hide success message after 5 seconds
-            setTimeout(() => {
-              successMessage.style.display = 'none';
-            }, 5000);
-          } else {
-            // Show error message
-            errorMessage.textContent = data.error || 'There was an error adding your account. Please check your details and try again.';
-            errorMessage.style.display = 'block';
-            successMessage.style.display = 'none';
-          }
-        })
-        .catch(error => {
-          // Show error message
-          errorMessage.textContent = 'Connection error. Please try again later.';
-          errorMessage.style.display = 'block';
-          successMessage.style.display = 'none';
-          console.error('Error:', error);
-        });
-      });
-      
-      // Load accounts from API
-      function loadAccounts() {
-        loadingAccounts.style.display = 'block';
-        noAccounts.classList.add('hidden');
-        
-        // Clear existing account items (except loading and no-account messages)
-        const items = accountList.querySelectorAll('.account-item');
-        items.forEach(item => item.remove());
-        
-        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}`)
-          .then(response => response.json())
-          .then(data => {
-            loadingAccounts.style.display = 'none';
-            
-            if (data.success && data.accounts && data.accounts.length > 0) {
-              data.accounts.forEach(account => {
-                accountList.appendChild(createAccountItem(account));
-              });
-            } else {
-              noAccounts.classList.remove('hidden');
-            }
-          })
-          .catch(error => {
-            loadingAccounts.style.display = 'none';
-            noAccounts.classList.remove('hidden');
-            noAccounts.textContent = 'Error loading accounts. Please try again later.';
-            console.error('Error loading accounts:', error);
-          });
-      }
-      
-      // Create account list item
-      function createAccountItem(account) {
-        const item = document.createElement('div');
-        item.className = 'account-item';
-        item.dataset.token = account.token;
-        
-        // Create main info section
-        const info = document.createElement('div');
-        info.className = 'account-info';
-        
-        // Create header
-        const header = document.createElement('div');
-        header.className = 'account-item-header';
-        
-        // Create title with icon
-        const title = document.createElement('div');
-        title.className = 'account-item-title';
-        
-        // Add icon
-        if (account.symbol.startsWith('fa:')) {
-          // FontAwesome icon
-          const icon = document.createElement('i');
-          icon.className = account.symbol.substring(3);
-          icon.style.color = account.color;
-          title.appendChild(icon);
-        } else {
-          // SVG icon
-          const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-          icon.setAttribute("viewBox", "0 0 24 24");
-          icon.setAttribute("width", "20");
-          icon.setAttribute("height", "20");
-          
-          const iconPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          iconPath.setAttribute("d", iconPaths[account.symbol] || iconPaths.task);
-          iconPath.setAttribute("fill", account.color);
-          
-          icon.appendChild(iconPath);
-          title.appendChild(icon);
-        }
-        
-        // Add name
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = account.name;
-        title.appendChild(nameSpan);
-        
-        // Create category badge
-        const category = document.createElement('div');
-        category.className = 'account-item-category';
-        category.textContent = account.category;
-        
-        // Add actions
-        const actions = document.createElement('div');
-        actions.className = 'account-actions';
-        
-        const editButton = document.createElement('button');
-        editButton.className = 'action-button edit';
-        editButton.textContent = 'Edit';
-        editButton.addEventListener('click', function() {
-          // Toggle editing mode
-          item.classList.toggle('editing');
-          
-          // If entering edit mode, populate the form
-          if (item.classList.contains('editing')) {
-            const editForm = item.querySelector('.edit-form');
-            const nameInput = editForm.querySelector('[name="edit-name"]');
-            const categorySelect = editForm.querySelector('[name="edit-category"]');
-            const symbolSelect = editForm.querySelector('[name="edit-symbol"]');
-            const colorInput = editForm.querySelector('[name="edit-color"]');
-            
-            nameInput.value = account.name;
-            categorySelect.value = account.category;
-            symbolSelect.value = account.symbol || 'task';
-            colorInput.value = account.color || '#e84c3d';
-          }
-        });
-        
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'action-button delete';
-        deleteButton.textContent = 'Delete';
-        deleteButton.addEventListener('click', function() {
-          // Show confirmation modal
-          currentDeleteToken = account.token;
-          deleteModal.style.display = 'flex';
-        });
-        
-        actions.appendChild(editButton);
-        actions.appendChild(deleteButton);
-        
-        // Add to header
-        header.appendChild(title);
-        header.appendChild(actions);
-        
-        // Create token display
-        const tokenDisplay = document.createElement('div');
-        tokenDisplay.className = 'account-item-token';
-        tokenDisplay.textContent = account.token;
-        
-        // Add elements to info section
-        info.appendChild(header);
-        info.appendChild(category);
-        info.appendChild(tokenDisplay);
-        
-        // Create edit form
-        const editForm = document.createElement('div');
-        editForm.className = 'edit-form';
-        editForm.innerHTML = `
-          <div class="form-group">
-            <label>Account Name</label>
-            <input type="text" name="edit-name" value="${account.name}" required>
-          </div>
-          
-          <div class="form-group">
-            <label>Category</label>
-            <select name="edit-category">
-              <option value="default" ${account.category === 'default' ? 'selected' : ''}>Default</option>
-              <option value="work" ${account.category === 'work' ? 'selected' : ''}>Work</option>
-              <option value="family" ${account.category === 'family' ? 'selected' : ''}>Family</option>
-              <option value="personal" ${account.category === 'personal' ? 'selected' : ''}>Personal</option>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label>Icon</label>
-            <select name="edit-symbol">
-              <optgroup label="Built-in Icons">
-                <option value="task" ${(account.symbol === 'task' || !account.symbol) ? 'selected' : ''}>Task</option>
-                <option value="user" ${account.symbol === 'user' ? 'selected' : ''}>User</option>
-                <option value="work" ${account.symbol === 'work' ? 'selected' : ''}>Work</option>
-                <option value="family" ${account.symbol === 'family' ? 'selected' : ''}>Family</option>
-                <option value="personal" ${account.symbol === 'personal' ? 'selected' : ''}>Personal</option>
-              </optgroup>
-              <optgroup label="FontAwesome Icons">
-                <option value="fa:fas fa-tasks" ${account.symbol === 'fa:fas fa-tasks' ? 'selected' : ''}>Tasks (FontAwesome)</option>
-                <option value="fa:fas fa-check-square" ${account.symbol === 'fa:fas fa-check-square' ? 'selected' : ''}>Checkbox (FontAwesome)</option>
-                <option value="fa:fas fa-list" ${account.symbol === 'fa:fas fa-list' ? 'selected' : ''}>List (FontAwesome)</option>
-                <option value="fa:fas fa-clipboard-list" ${account.symbol === 'fa:fas fa-clipboard-list' ? 'selected' : ''}>Clipboard (FontAwesome)</option>
-                <option value="fa:fas fa-user" ${account.symbol === 'fa:fas fa-user' ? 'selected' : ''}>User (FontAwesome)</option>
-                <option value="fa:fas fa-briefcase" ${account.symbol === 'fa:fas fa-briefcase' ? 'selected' : ''}>Work (FontAwesome)</option>
-                <option value="fa:fas fa-users" ${account.symbol === 'fa:fas fa-users' ? 'selected' : ''}>Family (FontAwesome)</option>
-                <option value="fa:fas fa-home" ${account.symbol === 'fa:fas fa-home' ? 'selected' : ''}>Home (FontAwesome)</option>
-                <option value="fa:fas fa-calendar-check" ${account.symbol === 'fa:fas fa-calendar-check' ? 'selected' : ''}>Calendar (FontAwesome)</option>
-              </optgroup>
-            </select>
-          </div>
-          
-          <div class="form-group">
-            <label>Color</label>
-            <input type="color" name="edit-color" value="${account.color || '#e84c3d'}">
-          </div>
-          
-          <div class="form-group">
-            <label>Person</label>
-            <div class="person-options">
-              <div class="person-option">
-                <input type="radio" name="edit-person" id="edit-person-justus-${account.token}" value="justus" ${account.person === 'justus' || !account.person ? 'checked' : ''}>
-                <label for="edit-person-justus-${account.token}">
-                  <i class="fas fa-male"></i>
-                  <span>Justus</span>
-                </label>
-              </div>
-              <div class="person-option">
-                <input type="radio" name="edit-person" id="edit-person-marie-${account.token}" value="marie" ${account.person === 'marie' ? 'checked' : ''}>
-                <label for="edit-person-marie-${account.token}">
-                  <i class="fas fa-female"></i>
-                  <span>Marie</span>
-                </label>
-              </div>
-              <div class="person-option">
-                <input type="radio" name="edit-person" id="edit-person-gemeinsam-${account.token}" value="gemeinsam" ${account.person === 'gemeinsam' ? 'checked' : ''}>
-                <label for="edit-person-gemeinsam-${account.token}">
-                  <i class="fas fa-male"></i>
-                  <i class="fas fa-female"></i>
-                  <span>Gemeinsam</span>
-                </label>
-              </div>
-            </div>
-          </div>
-          
-          <div class="form-footer">
-            <button type="button" class="action-button" data-action="cancel">Cancel</button>
-            <button type="button" class="button" data-action="save">
-              <i class="fas fa-
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // Get URL parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const instanceId = urlParams.get('instance') || "mm-stylish-todoist-top-right";
-      
-      // DOM Elements
-      const form = document.getElementById('account-form');
-      const successMessage = document.getElementById('success-message');
-      const errorMessage = document.getElementById('error-message');
-      const categorySelect = document.getElementById('account-category');
-      const customCategoryGroup = document.getElementById('custom-category-group');
-      const symbolSelect = document.getElementById('account-symbol');
-      const iconPreview = document.getElementById('icon-preview');
-      const accountList = document.getElementById('account-list');
-      const loadingAccounts = document.getElementById('loading-accounts');
-      const noAccounts = document.getElementById('no-accounts');
-      const maxEntries = document.getElementById('max-entries');
-      const decreaseEntries = document.getElementById('decrease-entries');
-      const increaseEntries = document.getElementById('increase-entries');
-      const saveSettings = document.getElementById('save-settings');
-      const settingsSuccessMessage = document.getElementById('settings-success-message');
-      const settingsErrorMessage = document.getElementById('settings-error-message');
-      const deleteModal = document.getElementById('delete-modal');
-      const cancelDelete = document.getElementById('cancel-delete');
-      const confirmDelete = document.getElementById('confirm-delete');
-      
-      // Tabs functionality
-      const tabs = document.querySelectorAll('.tab');
-      const tabContents = document.querySelectorAll('.tab-content');
-      
-      // SVG icon paths for preview
-      const iconPaths = {
-        task: "M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z",
-        check: "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z",
-        user: "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z",
-        work: "M10,2H14A2,2 0 0,1 16,4V6H20A2,2 0 0,1 22,8V19A2,2 0 0,1 20,21H4C2.89,21 2,20.1 2,19V8C2,6.89 2.89,6 4,6H8V4C8,2.89 8.89,2 10,2M14,6V4H10V6H14Z",
-        family: "M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z",
-        personal: "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"
-      };
-      
-      // Variable to store current account being deleted
-      let currentDeleteToken = null;
-      
-      // Settings
-      let settings = {
-        maximumEntries: 10
-      };
-      
-      // Show custom category field when custom is selected
-      categorySelect.addEventListener('change', function() {
-        if (this.value === 'custom') {
-          customCategoryGroup.classList.remove('hidden');
-        } else {
-          customCategoryGroup.classList.add('hidden');
-        }
-      });
-      
-      // Update icon preview when changing selection
-      symbolSelect.addEventListener('change', function() {
-        // Check if this is a FontAwesome icon
-        if (this.value.startsWith('fa:')) {
-          // Extract FontAwesome icon class
-          const faClass = this.value.substring(3);
-          iconPreview.innerHTML = `<i class="${faClass}" style="font-size: 24px;"></i>`;
-        } else {
-          // Use built-in SVG icon
-          const iconPath = iconPaths[this.value] || iconPaths.task;
-          iconPreview.innerHTML = `
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="${iconPath}"></path>
-            </svg>
-          `;
-        }
-      });
-      
-      // Tab switching functionality
-      tabs.forEach(tab => {
-        tab.addEventListener('click', function() {
-          // If clicking on manage accounts tab, load accounts
-          if (this.dataset.tab === 'manage-accounts') {
-            loadAccounts();
-          }
-          
-          // Toggle active class on tabs      <div class="tabs">
-        <div class="tab active" data-tab="add-account">Add Account</div>
-        <div class="tab" data-tab="manage-accounts">Manage Accounts</div>
-        <div class="tab" data-tab="settings">Settings</div>
-      </div>
-    </div>
-    
-    <!-- Add Account Tab -->
-    <div id="add-account" class="tab-content active">
-      <h2>Add New Todoist Account</h2>
-      <p>Add a new Todoist account by entering its details below.</p>
-      
-      <form id="account-form">
-        <div class="form-group">
-          <label for="account-name">Account Name</label>
-          <input type="text" id="account-name" placeholder="My Todoist" required>
-        </div>
-        
-        <div class="form-group">
-          <label for="account-token">Todoist API Token</label>
-          <input type="text" id="account-token" placeholder="Your Todoist API token" required>
-          <small class="help-text">You can find this in Todoist Settings → Integrations → API token</small>
-        </div>
-        
-        <div class="form-group">
-          <label for="account-category">Category</label>
-          <select id="account-category">
-            <option value="default">Default</option>
-            <option value="work">Work</option>
-            <option value="family">Family</option>
-            <option value="personal">Personal</option>
-            <option value="custom">Custom...</option>
-          </select>
-        </div>
-        
-        <div class="form-group hidden" id="custom-category-group">
-          <label for="custom-category">Custom Category Name</label>
-          <input type="text" id="custom-category" placeholder="Enter category name">
-        </div>
-        
-        <div class="form-group">
-          <label for="account-symbol">Icon</label>
-          <select id="account-symbol">
-            <optgroup label="Built-in Icons">
-              <option value="task">Task</option>
-              <option value="user">User</option>
-              <option value="work">Work</option>
-              <option value="family">Family</option>
-              <option value="personal">Personal</option>
-            </optgroup>
-            <optgroup label="FontAwesome Icons">
-              <option value="fa:fas fa-tasks">Tasks (FontAwesome)</option>
-              <option value="fa:fas fa-check-square">Checkbox (FontAwesome)</option>
-              <option value="fa:fas fa-list">List (FontAwesome)</option>
-              <option value="fa:fas fa-clipboard-list">Clipboard (FontAwesome)</option>
-              <option value="fa:fas fa-user">User (FontAwesome)</option>
-              <option value="fa:fas fa-briefcase">Work (FontAwesome)</option>
-              <option value="fa:fas fa-users">Family (FontAwesome)</option>
-              <option value="fa:fas fa-home">Home (FontAwesome)</option>
-              <option value="fa:fas fa-calendar-check">Calendar (FontAwesome)</option>
-            </optgroup>
-          </select>
-          <div id="icon-preview" class="icon-preview">
-            <svg viewBox="0 0 24 24" width="24" height="24">
-              <path fill="currentColor" d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
-            </svg>
-          </div>
-          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-        </div>
-        
-        <div class="form-group">
-          <label for="account-color">Color</label>
-          <input type="color" id="account-color" value="#e84c3d">
-        </div>
-        
-        <div class="form-group">
-          <label>Person</label>
-          <div class="person-options">
-            <div class="person-option">
-              <input type="radio" name="person" id="person-justus" value="justus" checked>
-              <label for="person-justus">
-                <i class="fas fa-male"></i>
-                <span>Justus</span>
-              </label>
-            </div>
-            <div class="person-option">
-              <input type="radio" name="person" id="person-marie" value="marie">
-              <label for="person-marie">
-                <i class="fas fa-female"></i>
-                <span>Marie</span>
-              </label>
-            </div>
-            <div class="person-option">
-              <input type="radio" name="person" id="person-gemeinsam" value="gemeinsam">
-              <label for="person-gemeinsam">
-                <i class="fas fa-male"></i>
-                <i class="fas fa-female"></i>
-                <span>Gemeinsam</span>
-              </label>
-            </div>
-          </div>
-        </div>
-        
-        <div class="form-footer">
-          <p class="help-text">After adding an account, you may need to restart your MagicMirror</p>
-          <button type="submit" class="button">
-            <i class="fas fa-plus-circle"></i>
-            Add Account
-          </button>
-        </div>
-        
-        <div class="success-message" id="success-message">
-          Account added successfully! You can close this window or add another account.
-        </div>
-        
-        <div class="error-message" id="error-message">
-          There was an error adding your account. Please check your details and try again.
-        </div>
-      </form>
-    </div>
-    
-    <!-- Manage Accounts Tab -->
-    <div id="manage-accounts" class="tab-content">
-      <h2>Manage Your Accounts</h2>
-      <p>View, edit, or delete your Todoist accounts</p>
-      
-      <div id="account-list" class="account-list">
-        <div id="loading-accounts" style="text-align: center; padding: 20px;">
-          <div class="loading-spinner"></div>
-          <p>Loading your accounts...</p>
-        </div>
-        
-        <div id="no-accounts" class="hidden" style="text-align: center; padding: 20px;">
-          No accounts found. Add one from the "Add Account" tab.
-        </div>
-      </div>
-    </div>
-    
-    <!-- Settings Tab -->
-    <div id="settings" class="tab-content">
-      <h2>Todoist Settings</h2>
-      <p>Configure the display of your Todoist tasks</p>
-      
-      <div class="entry-count-setting">
-        <label>Maximum number of tasks to display</label>
-        <div class="entry-count-control">
-          <button type="button" id="decrease-entries">-</button>
-          <input type="number" id="max-entries" min="1" max="50" value="10">
-          <button type="button" id="increase-entries">+</button>
-        </div>
-      </div>
-      <p class="help-text">Configure how many tasks to show in total.</p>
-      
-      <div class="form-footer">
-        <button type="button" id="save-settings" class="button">Save Settings</button>
-      </div>
-      
-      <div class="success-message" id="settings-success-message">
-        Settings saved successfully!
-      </div>
-      
-      <div class="error-message" id="settings-error-message">
-        There was an error saving your settings. Please try again.
-      </div>
-    </div>
-  </div>
-  
-  <!-- Delete Confirmation Modal -->
-  <div class="confirmation-modal" id="delete-modal">
-    <div class="modal-content">
-      <div class="modal-title">Delete Account</div>
-      <div class="modal-message">Are you sure you want to delete this account? This action cannot be undone.</div>
-      <div class="modal-actions">
-        <button class="action-button" id="cancel-delete">Cancel</button>
-        <button class="action-button delete" id="confirm-delete">Delete</button>
-      </div>
-    </div>
-  </div><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1211,477 +474,739 @@
       <!-- Tab Navigation -->
       <div class="tabs">
         <div class="tab active" data-tab="add-account">Add Account</div>
-        <div class="tab" data-tab="manage-accounts"><!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MMM-StylishTodoist Setup</title>
-  <style>
-    :root {
-      --theme-color: #e84c3d;
-      --theme-color-light: #ee7669;
-      --theme-color-dark: #c62918;
-      --bg-color: #121212;
-      --surface-color: #1e1e1e;
-      --surface-color-light: #2a2a2a;
-      --text-color: #ffffff;
-      --text-color-dimmed: #aaaaaa;
-      --border-radius: 12px;
-      --input-border-radius: 8px;
-      --spacing-sm: 8px;
-      --spacing-md: 16px;
-      --spacing-lg: 24px;
-      --transition-speed: 0.2s;
-    }
-    
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      line-height: 1.5;
-      padding: 20px;
-    }
-    
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: var(--spacing-lg);
-      background-color: var(--surface-color);
-      border-radius: var(--border-radius);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    
-    .logo {
-      font-size: 1.8em;
-      font-weight: bold;
-      color: var(--theme-color);
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-    
-    .logo svg {
-      width: 30px;
-      height: 30px;
-    }
-    
-    h1 {
-      font-size: 1.8em;
-      margin-bottom: 10px;
-      color: var(--text-color);
-    }
-    
-    h2 {
-      font-size: 1.4em;
-      margin: 30px 0 15px;
-      color: var(--text-color);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 8px;
-    }
-    
-    p {
-      color: var(--text-color-dimmed);
-      margin-bottom: 20px;
-    }
-    
-    .form-group {
-      margin-bottom: 20px;
-    }
-    
-    label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 500;
-    }
-    
-    input, select {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: var(--input-border-radius);
-      background-color: rgba(0, 0, 0, 0.2);
-      color: var(--text-color);
-      font-size: 1em;
-      transition: all var(--transition-speed) ease;
-    }
-    
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--theme-color);
-      box-shadow: 0 0 0 2px rgba(232, 76, 61, 0.2);
-    }
-    
-    /* Person selection styles */
-    .person-options {
-      display: flex;
-      gap: var(--spacing-md);
-      flex-wrap: wrap;
-    }
-    
-    .person-option {
-      flex: 1;
-      min-width: 120px;
-    }
-    
-    .person-option input[type="radio"] {
-      display: none;
-    }
-    
-    .person-option label {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: var(--spacing-md);
-      background-color: var(--surface-color-light);
-      border-radius: var(--input-border-radius);
-      cursor: pointer;
-      transition: all var(--transition-speed) ease;
-      text-align: center;
-      border: 2px solid transparent;
-    }
-    
-    .person-option label i {
-      font-size: 1.6em;
-      margin-bottom: var(--spacing-sm);
-      color: var(--theme-color-light);
-    }
-    
-    .person-option label span {
-      font-size: 0.9em;
-    }
-    
-    .person-option input[type="radio"]:checked + label {
-      background-color: rgba(232, 76, 61, 0.2);
-      border-color: var(--theme-color);
-    }
-    
-    .person-option input[type="radio"]:checked + label i {
-      color: var(--theme-color);
-    }
-    
-    .button {
-      background-color: var(--theme-color);
-      color: white;
-      border: none;
-      padding: 14px 28px;
-      font-size: 1em;
-      font-weight: 600;
-      border-radius: var(--input-border-radius);
-      cursor: pointer;
-      transition: all var(--transition-speed) ease;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    }
-    
-    .button:hover {
-      background-color: var(--theme-color-light);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
-    }
-    
-    .button:active {
-      background-color: var(--theme-color-dark);
-      transform: translateY(0);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    }
-    
-    .button i {
-      font-size: 1.1em;
-    }
-    
-    .form-footer {
-      margin-top: var(--spacing-lg);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .help-text {
-      font-size: 0.85em;
-      color: var(--text-color-dimmed);
-      max-width: 60%;
-      line-height: 1.5;
-    }
-    
-    .success-message, .error-message {
-      padding: 15px;
-      border-radius: var(--border-radius);
-      margin-top: 20px;
-      display: none;
-    }
-    
-    .success-message {
-      background-color: rgba(46, 204, 113, 0.2);
-      border-left: 3px solid #2ecc71;
-    }
-    
-    .error-message {
-      background-color: rgba(231, 76, 60, 0.2);
-      border-left: 3px solid #e74c3c;
-    }
-    
-    .hidden {
-      display: none;
-    }
-    
-    .icon-preview {
-      margin-top: 10px;
-      color: var(--theme-color);
-    }
-    
-    /* Tab navigation */
-    .tabs {
-      display: flex;
-      margin-bottom: 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .tab {
-      padding: 10px 20px;
-      cursor: pointer;
-      margin-right: 10px;
-      border-bottom: 3px solid transparent;
-      color: var(--text-color-dimmed);
-    }
-    
-    .tab.active {
-      border-bottom-color: var(--theme-color);
-      color: var(--text-color);
-    }
-    
-    .tab-content {
-      display: none;
-    }
-    
-    .tab-content.active {
-      display: block;
-    }
-    
-    /* Account list styles */
-    .account-list {
-      margin-top: 30px;
-    }
-    
-    .account-item {
-      background-color: rgba(0, 0, 0, 0.2);
-      border-radius: var(--border-radius);
-      margin-bottom: 15px;
-      padding: 15px;
-      position: relative;
-    }
-    
-    .account-item-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-    
-    .account-item-title {
-      font-weight: 500;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .account-item-category {
-      font-size: 0.8em;
-      background-color: rgba(255, 255, 255, 0.1);
-      padding: 4px 8px;
-      border-radius: 4px;
-      text-transform: capitalize;
-    }
-    
-    .account-item-token {
-      font-size: 0.85em;
-      color: var(--text-color-dimmed);
-      word-break: break-all;
-      margin: 10px 0;
-      padding: 8px;
-      background-color: rgba(0, 0, 0, 0.2);
-      border-radius: 4px;
-    }
-    
-    .account-actions {
-      display: flex;
-      gap: 10px;
-    }
-    
-    .action-button {
-      background-color: transparent;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 4px;
-      padding: 6px 12px;
-      font-size: 0.85em;
-      color: var(--text-color);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    .action-button:hover {
-      background-color: rgba(255, 255, 255, 0.1);
-    }
-    
-    .action-button.edit {
-      border-color: var(--theme-color-light);
-      color: var(--theme-color-light);
-    }
-    
-    .action-button.delete {
-      border-color: #e74c3c;
-      color: #e74c3c;
-    }
-    
-    .action-button.edit:hover {
-      background-color: rgba(232, 76, 61, 0.2);
-    }
-    
-    .action-button.delete:hover {
-      background-color: rgba(231, 76, 60, 0.2);
-    }
-    
-    /* Edit form inside account item */
-    .edit-form {
-      display: none;
-    }
-    
-    .account-item.editing .account-info {
-      display: none;
-    }
-    
-    .account-item.editing .edit-form {
-      display: block;
-    }
-    
-    .edit-form .form-footer {
-      justify-content: flex-end;
-      gap: 10px;
-    }
-    
-    /* Entry count control styling */
-    .entry-count-setting {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background-color: rgba(0, 0, 0, 0.2);
-      padding: 15px;
-      border-radius: var(--border-radius);
-      margin-bottom: 20px;
-    }
-    
-    .entry-count-setting label {
-      margin-bottom: 0;
-    }
-    
-    .entry-count-control {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .entry-count-control input {
-      width: 70px;
-      text-align: center;
-    }
-    
-    .entry-count-control button {
-      width: 36px;
-      height: 36px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      background-color: var(--theme-color);
-      color: white;
-      font-size: 1.2em;
-      cursor: pointer;
-      border: none;
-    }
-    
-    /* Loading indicators */
-    .loading-spinner {
-      display: inline-block;
-      width: 20px;
-      height: 20px;
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%;
-      border-top-color: var(--theme-color);
-      animation: spin 1s ease-in-out infinite;
-    }
-    
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    /* Confirmation modal */
-    .confirmation-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.7);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100;
-      display: none;
-    }
-    
-    .modal-content {
-      background-color: var(--surface-color);
-      padding: 25px;
-      border-radius: var(--border-radius);
-      width: 90%;
-      max-width: 400px;
-    }
-    
-    .modal-title {
-      margin-bottom: 15px;
-      font-size: 1.2em;
-    }
-    
-    .modal-message {
-      margin-bottom: 20px;
-      color: var(--text-color-dimmed);
-    }
-    
-    .modal-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="logo">
-        <svg viewBox="0 0 24 24" width="24" height="24">
-          <path fill="currentColor" d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
-        </svg>
-        MMM-StylishTodoist
+        <div class="tab" data-tab="manage-accounts">Manage Accounts</div>
+        <div class="tab" data-tab="settings">Settings</div>
       </div>
-      <h1>Todoist Setup</h1>
-      <p>Configure your Todoist accounts and appearance settings</p>
+    </div>
+    
+    <!-- Add Account Tab -->
+    <div id="add-account" class="tab-content active">
+      <h2>Add New Todoist Account</h2>
+      <p>Add a new Todoist account by entering its details below.</p>
       
-      <!-- Tab
+      <form id="account-form">
+        <div class="form-group">
+          <label for="account-name">Account Name</label>
+          <input type="text" id="account-name" placeholder="My Todoist" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="account-token">Todoist API Token</label>
+          <input type="text" id="account-token" placeholder="Your Todoist API token" required>
+          <small class="help-text">You can find this in Todoist Settings → Integrations → API token</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="account-category">Category</label>
+          <select id="account-category">
+            <option value="default">Default</option>
+            <option value="work">Work</option>
+            <option value="family">Family</option>
+            <option value="personal">Personal</option>
+            <option value="custom">Custom...</option>
+          </select>
+        </div>
+        
+        <div class="form-group hidden" id="custom-category-group">
+          <label for="custom-category">Custom Category Name</label>
+          <input type="text" id="custom-category" placeholder="Enter category name">
+        </div>
+        
+        <div class="form-group">
+          <label for="account-symbol">Icon</label>
+          <select id="account-symbol">
+            <optgroup label="Built-in Icons">
+              <option value="task">Task</option>
+              <option value="user">User</option>
+              <option value="work">Work</option>
+              <option value="family">Family</option>
+              <option value="personal">Personal</option>
+            </optgroup>
+            <optgroup label="FontAwesome Icons">
+              <option value="fa:fas fa-tasks">Tasks (FontAwesome)</option>
+              <option value="fa:fas fa-check-square">Checkbox (FontAwesome)</option>
+              <option value="fa:fas fa-list">List (FontAwesome)</option>
+              <option value="fa:fas fa-clipboard-list">Clipboard (FontAwesome)</option>
+              <option value="fa:fas fa-user">User (FontAwesome)</option>
+              <option value="fa:fas fa-briefcase">Work (FontAwesome)</option>
+              <option value="fa:fas fa-users">Family (FontAwesome)</option>
+              <option value="fa:fas fa-home">Home (FontAwesome)</option>
+              <option value="fa:fas fa-calendar-check">Calendar (FontAwesome)</option>
+            </optgroup>
+          </select>
+          <div id="icon-preview" class="icon-preview">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z"></path>
+            </svg>
+          </div>
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+        </div>
+        
+        <div class="form-group">
+          <label for="account-color">Color</label>
+          <input type="color" id="account-color" value="#e84c3d">
+        </div>
+        
+        <div class="form-group">
+          <label>Person</label>
+          <div class="person-options">
+            <div class="person-option">
+              <input type="radio" name="person" id="person-justus" value="justus" checked>
+              <label for="person-justus">
+                <i class="fas fa-male"></i>
+                <span>Justus</span>
+              </label>
+            </div>
+            <div class="person-option">
+              <input type="radio" name="person" id="person-marie" value="marie">
+              <label for="person-marie">
+                <i class="fas fa-female"></i>
+                <span>Marie</span>
+              </label>
+            </div>
+            <div class="person-option">
+              <input type="radio" name="person" id="person-gemeinsam" value="gemeinsam">
+              <label for="person-gemeinsam">
+                <i class="fas fa-male"></i>
+                <i class="fas fa-female"></i>
+                <span>Gemeinsam</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        
+        <div class="form-footer">
+          <p class="help-text">After adding an account, you may need to restart your MagicMirror</p>
+          <button type="submit" class="button">
+            <i class="fas fa-plus-circle"></i>
+            Add Account
+          </button>
+        </div>
+        
+        <div class="success-message" id="success-message">
+          Account added successfully! You can close this window or add another account.
+        </div>
+        
+        <div class="error-message" id="error-message">
+          There was an error adding your account. Please check your details and try again.
+        </div>
+      </form>
+    </div>
+    
+    <!-- Manage Accounts Tab -->
+    <div id="manage-accounts" class="tab-content">
+      <h2>Manage Your Accounts</h2>
+      <p>View, edit, or delete your Todoist accounts</p>
+      
+      <div id="account-list" class="account-list">
+        <div id="loading-accounts" style="text-align: center; padding: 20px;">
+          <div class="loading-spinner"></div>
+          <p>Loading your accounts...</p>
+        </div>
+        
+        <div id="no-accounts" class="hidden" style="text-align: center; padding: 20px;">
+          No accounts found. Add one from the "Add Account" tab.
+        </div>
+      </div>
+    </div>
+    
+    <!-- Settings Tab -->
+    <div id="settings" class="tab-content">
+      <h2>Todoist Settings</h2>
+      <p>Configure the display of your Todoist tasks</p>
+      
+      <div class="entry-count-setting">
+        <label>Maximum number of tasks to display</label>
+        <div class="entry-count-control">
+          <button type="button" id="decrease-entries">-</button>
+          <input type="number" id="max-entries" min="1" max="50" value="10">
+          <button type="button" id="increase-entries">+</button>
+        </div>
+      </div>
+      <p class="help-text">Configure how many tasks to show in total.</p>
+      
+      <div class="form-footer">
+        <button type="button" id="save-settings" class="button">Save Settings</button>
+      </div>
+      
+      <div class="success-message" id="settings-success-message">
+        Settings saved successfully!
+      </div>
+      
+      <div class="error-message" id="settings-error-message">
+        There was an error saving your settings. Please try again.
+      </div>
+    </div>
+  </div>
+  
+  <!-- Delete Confirmation Modal -->
+  <div class="confirmation-modal" id="delete-modal">
+    <div class="modal-content">
+      <div class="modal-title">Delete Account</div>
+      <div class="modal-message">Are you sure you want to delete this account? This action cannot be undone.</div>
+      <div class="modal-actions">
+        <button class="action-button" id="cancel-delete">Cancel</button>
+        <button class="action-button delete" id="confirm-delete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const instanceId = urlParams.get('instance') || "mm-stylish-todoist-top-right";
+      
+      // DOM Elements
+      const form = document.getElementById('account-form');
+      const successMessage = document.getElementById('success-message');
+      const errorMessage = document.getElementById('error-message');
+      const categorySelect = document.getElementById('account-category');
+      const customCategoryGroup = document.getElementById('custom-category-group');
+      const symbolSelect = document.getElementById('account-symbol');
+      const iconPreview = document.getElementById('icon-preview');
+      const accountList = document.getElementById('account-list');
+      const loadingAccounts = document.getElementById('loading-accounts');
+      const noAccounts = document.getElementById('no-accounts');
+      const maxEntries = document.getElementById('max-entries');
+      const decreaseEntries = document.getElementById('decrease-entries');
+      const increaseEntries = document.getElementById('increase-entries');
+      const saveSettings = document.getElementById('save-settings');
+      const settingsSuccessMessage = document.getElementById('settings-success-message');
+      const settingsErrorMessage = document.getElementById('settings-error-message');
+      const deleteModal = document.getElementById('delete-modal');
+      const cancelDelete = document.getElementById('cancel-delete');
+      const confirmDelete = document.getElementById('confirm-delete');
+      
+      // Tabs functionality
+      const tabs = document.querySelectorAll('.tab');
+      const tabContents = document.querySelectorAll('.tab-content');
+      
+      // SVG icon paths for preview
+      const iconPaths = {
+        task: "M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z",
+        check: "M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z",
+        user: "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z",
+        work: "M10,2H14A2,2 0 0,1 16,4V6H20A2,2 0 0,1 22,8V19A2,2 0 0,1 20,21H4C2.89,21 2,20.1 2,19V8C2,6.89 2.89,6 4,6H8V4C8,2.89 8.89,2 10,2M14,6V4H10V6H14Z",
+        family: "M12,5.5A3.5,3.5 0 0,1 15.5,9A3.5,3.5 0 0,1 12,12.5A3.5,3.5 0 0,1 8.5,9A3.5,3.5 0 0,1 12,5.5M5,8C5.56,8 6.08,8.15 6.53,8.42C6.38,9.85 6.8,11.27 7.66,12.38C7.16,13.34 6.16,14 5,14A3,3 0 0,1 2,11A3,3 0 0,1 5,8M19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14C17.84,14 16.84,13.34 16.34,12.38C17.2,11.27 17.62,9.85 17.47,8.42C17.92,8.15 18.44,8 19,8M5.5,18.25C5.5,16.18 8.41,14.5 12,14.5C15.59,14.5 18.5,16.18 18.5,18.25V20H5.5V18.25M0,20V18.5C0,17.11 1.89,15.94 4.45,15.6C3.86,16.28 3.5,17.22 3.5,18.25V20H0M24,20H20.5V18.25C20.5,17.22 20.14,16.28 19.55,15.6C22.11,15.94 24,17.11 24,18.5V20Z",
+        personal: "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"
+      };
+      
+      // Variable to store current account being deleted
+      let currentDeleteToken = null;
+      
+      // Settings
+      let settings = {
+        maximumEntries: 10
+      };
+      
+      // Show custom category field when custom is selected
+      categorySelect.addEventListener('change', function() {
+        if (this.value === 'custom') {
+          customCategoryGroup.classList.remove('hidden');
+        } else {
+          customCategoryGroup.classList.add('hidden');
+        }
+      });
+      
+      // Update icon preview when changing selection
+      symbolSelect.addEventListener('change', function() {
+        // Check if this is a FontAwesome icon
+        if (this.value.startsWith('fa:')) {
+          // Extract FontAwesome icon class
+          const faClass = this.value.substring(3);
+          iconPreview.innerHTML = `<i class="${faClass}" style="font-size: 24px;"></i>`;
+        } else {
+          // Use built-in SVG icon
+          const iconPath = iconPaths[this.value] || iconPaths.task;
+          iconPreview.innerHTML = `
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="${iconPath}"></path>
+            </svg>
+          `;
+        }
+      });
+      
+      // Tab switching functionality
+      tabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+          // If clicking on manage accounts tab, load accounts
+          if (this.dataset.tab === 'manage-accounts') {
+            loadAccounts();
+          }
+          
+          // Toggle active class on tabs
+          tabs.forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          
+          // Show corresponding tab content
+          tabContents.forEach(content => content.classList.remove('active'));
+          document.getElementById(this.dataset.tab).classList.add('active');
+        });
+      });
+      
+      // Entry count controls
+      decreaseEntries.addEventListener('click', function() {
+        const currentValue = parseInt(maxEntries.value);
+        if (currentValue > 1) {
+          maxEntries.value = currentValue - 1;
+        }
+      });
+      
+      increaseEntries.addEventListener('click', function() {
+        const currentValue = parseInt(maxEntries.value);
+        if (currentValue < 50) {
+          maxEntries.value = currentValue + 1;
+        }
+      });
+      
+      // Save settings
+      saveSettings.addEventListener('click', function() {
+        settings.maximumEntries = parseInt(maxEntries.value);
+        
+        // Save settings via API here
+        fetch(`/MMM-StylishTodoist/api/settings/${instanceId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            maximumEntries: settings.maximumEntries
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            settingsSuccessMessage.style.display = 'block';
+            
+            // Hide success message after 3 seconds
+            setTimeout(() => {
+              settingsSuccessMessage.style.display = 'none';
+            }, 3000);
+          } else {
+            settingsErrorMessage.textContent = data.error || 'Unknown error occurred.';
+            settingsErrorMessage.style.display = 'block';
+          }
+        })
+        .catch(error => {
+          console.error('Error saving settings:', error);
+          settingsErrorMessage.textContent = 'Connection error. Please try again later.';
+          settingsErrorMessage.style.display = 'block';
+        });
+      });
+      
+      // Delete account confirmation
+      cancelDelete.addEventListener('click', function() {
+        deleteModal.style.display = 'none';
+        currentDeleteToken = null;
+      });
+      
+      confirmDelete.addEventListener('click', function() {
+        if (currentDeleteToken) {
+          deleteAccount(currentDeleteToken);
+        }
+        deleteModal.style.display = 'none';
+      });
+      
+      // Form submission for adding account
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const accountName = document.getElementById('account-name').value;
+        const accountToken = document.getElementById('account-token').value;
+        const accountCategory = document.getElementById('account-category').value;
+        const customCategory = document.getElementById('custom-category').value;
+        const accountSymbol = document.getElementById('account-symbol').value;
+        const accountColor = document.getElementById('account-color').value;
+        
+        // Get selected person
+        const personRadios = document.getElementsByName('person');
+        let selectedPerson = 'justus'; // Default
+        for (const radio of personRadios) {
+          if (radio.checked) {
+            selectedPerson = radio.value;
+            break;
+          }
+        }
+        
+        // Determine final category value
+        const finalCategory = accountCategory === 'custom' ? customCategory : accountCategory;
+        
+        // Prepare data
+        const data = {
+          name: accountName,
+          token: accountToken,
+          category: finalCategory,
+          symbol: accountSymbol,
+          color: accountColor,
+          person: selectedPerson
+        };
+        
+        // Send to API
+        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Show success message
+            successMessage.style.display = 'block';
+            errorMessage.style.display = 'none';
+            
+            // Reset form
+            form.reset();
+            customCategoryGroup.classList.add('hidden');
+            
+            // Reset icon preview
+            iconPreview.innerHTML = `
+              <svg viewBox="0 0 24 24" width="24" height="24">
+                <path fill="currentColor" d="${iconPaths.task}"></path>
+              </svg>
+            `;
+            
+            // Hide success message after 5 seconds
+            setTimeout(() => {
+              successMessage.style.display = 'none';
+            }, 5000);
+          } else {
+            // Show error message
+            errorMessage.textContent = data.error || 'There was an error adding your account. Please check your details and try again.';
+            errorMessage.style.display = 'block';
+            successMessage.style.display = 'none';
+          }
+        })
+        .catch(error => {
+          // Show error message
+          errorMessage.textContent = 'Connection error. Please try again later.';
+          errorMessage.style.display = 'block';
+          successMessage.style.display = 'none';
+          console.error('Error:', error);
+        });
+      });
+      
+      // Load accounts from API
+      function loadAccounts() {
+        loadingAccounts.style.display = 'block';
+        noAccounts.classList.add('hidden');
+        
+        // Clear existing account items (except loading and no-account messages)
+        const items = accountList.querySelectorAll('.account-item');
+        items.forEach(item => item.remove());
+        
+        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}`)
+          .then(response => response.json())
+          .then(data => {
+            loadingAccounts.style.display = 'none';
+            
+            if (data.success && data.accounts && data.accounts.length > 0) {
+              data.accounts.forEach(account => {
+                accountList.appendChild(createAccountItem(account));
+              });
+            } else {
+              noAccounts.classList.remove('hidden');
+            }
+          })
+          .catch(error => {
+            loadingAccounts.style.display = 'none';
+            noAccounts.classList.remove('hidden');
+            noAccounts.textContent = 'Error loading accounts. Please try again later.';
+            console.error('Error loading accounts:', error);
+          });
+      }
+      
+      // Create account list item
+      function createAccountItem(account) {
+        const item = document.createElement('div');
+        item.className = 'account-item';
+        item.dataset.token = account.token;
+        
+        // Create main info section
+        const info = document.createElement('div');
+        info.className = 'account-info';
+        
+        // Create header
+        const header = document.createElement('div');
+        header.className = 'account-item-header';
+        
+        // Create title with icon
+        const title = document.createElement('div');
+        title.className = 'account-item-title';
+        
+        // Add icon
+        if (account.symbol.startsWith('fa:')) {
+          // FontAwesome icon
+          const icon = document.createElement('i');
+          icon.className = account.symbol.substring(3);
+          icon.style.color = account.color;
+          title.appendChild(icon);
+        } else {
+          // SVG icon
+          const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          icon.setAttribute("viewBox", "0 0 24 24");
+          icon.setAttribute("width", "20");
+          icon.setAttribute("height", "20");
+          
+          const iconPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          iconPath.setAttribute("d", iconPaths[account.symbol] || iconPaths.task);
+          iconPath.setAttribute("fill", account.color);
+          
+          icon.appendChild(iconPath);
+          title.appendChild(icon);
+        }
+        
+        // Add name
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = account.name;
+        title.appendChild(nameSpan);
+        
+        // Create category badge
+        const category = document.createElement('div');
+        category.className = 'account-item-category';
+        category.textContent = account.category;
+        
+        // Add actions
+        const actions = document.createElement('div');
+        actions.className = 'account-actions';
+        
+        const editButton = document.createElement('button');
+        editButton.className = 'action-button edit';
+        editButton.textContent = 'Edit';
+        editButton.addEventListener('click', function() {
+          // Toggle editing mode
+          item.classList.toggle('editing');
+          
+          // If entering edit mode, populate the form
+          if (item.classList.contains('editing')) {
+            const editForm = item.querySelector('.edit-form');
+            const nameInput = editForm.querySelector('[name="edit-name"]');
+            const categorySelect = editForm.querySelector('[name="edit-category"]');
+            const symbolSelect = editForm.querySelector('[name="edit-symbol"]');
+            const colorInput = editForm.querySelector('[name="edit-color"]');
+            
+            nameInput.value = account.name;
+            categorySelect.value = account.category;
+            symbolSelect.value = account.symbol || 'task';
+            colorInput.value = account.color || '#e84c3d';
+          }
+        });
+        
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'action-button delete';
+        deleteButton.textContent = 'Delete';
+        deleteButton.addEventListener('click', function() {
+          // Show confirmation modal
+          currentDeleteToken = account.token;
+          deleteModal.style.display = 'flex';
+        });
+        
+        actions.appendChild(editButton);
+        actions.appendChild(deleteButton);
+        
+        // Add to header
+        header.appendChild(title);
+        header.appendChild(actions);
+        
+        // Create token display
+        const tokenDisplay = document.createElement('div');
+        tokenDisplay.className = 'account-item-token';
+        tokenDisplay.textContent = account.token;
+        
+        // Add elements to info section
+        info.appendChild(header);
+        info.appendChild(category);
+        info.appendChild(tokenDisplay);
+        
+        // Create edit form
+        const editForm = document.createElement('div');
+        editForm.className = 'edit-form';
+        editForm.innerHTML = `
+          <div class="form-group">
+            <label>Account Name</label>
+            <input type="text" name="edit-name" value="${account.name}" required>
+          </div>
+          
+          <div class="form-group">
+            <label>Category</label>
+            <select name="edit-category">
+              <option value="default" ${account.category === 'default' ? 'selected' : ''}>Default</option>
+              <option value="work" ${account.category === 'work' ? 'selected' : ''}>Work</option>
+              <option value="family" ${account.category === 'family' ? 'selected' : ''}>Family</option>
+              <option value="personal" ${account.category === 'personal' ? 'selected' : ''}>Personal</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>Icon</label>
+            <select name="edit-symbol">
+              <optgroup label="Built-in Icons">
+                <option value="task" ${(account.symbol === 'task' || !account.symbol) ? 'selected' : ''}>Task</option>
+                <option value="user" ${account.symbol === 'user' ? 'selected' : ''}>User</option>
+                <option value="work" ${account.symbol === 'work' ? 'selected' : ''}>Work</option>
+                <option value="family" ${account.symbol === 'family' ? 'selected' : ''}>Family</option>
+                <option value="personal" ${account.symbol === 'personal' ? 'selected' : ''}>Personal</option>
+              </optgroup>
+              <optgroup label="FontAwesome Icons">
+                <option value="fa:fas fa-tasks" ${account.symbol === 'fa:fas fa-tasks' ? 'selected' : ''}>Tasks (FontAwesome)</option>
+                <option value="fa:fas fa-check-square" ${account.symbol === 'fa:fas fa-check-square' ? 'selected' : ''}>Checkbox (FontAwesome)</option>
+                <option value="fa:fas fa-list" ${account.symbol === 'fa:fas fa-list' ? 'selected' : ''}>List (FontAwesome)</option>
+                <option value="fa:fas fa-clipboard-list" ${account.symbol === 'fa:fas fa-clipboard-list' ? 'selected' : ''}>Clipboard (FontAwesome)</option>
+                <option value="fa:fas fa-user" ${account.symbol === 'fa:fas fa-user' ? 'selected' : ''}>User (FontAwesome)</option>
+                <option value="fa:fas fa-briefcase" ${account.symbol === 'fa:fas fa-briefcase' ? 'selected' : ''}>Work (FontAwesome)</option>
+                <option value="fa:fas fa-users" ${account.symbol === 'fa:fas fa-users' ? 'selected' : ''}>Family (FontAwesome)</option>
+                <option value="fa:fas fa-home" ${account.symbol === 'fa:fas fa-home' ? 'selected' : ''}>Home (FontAwesome)</option>
+                <option value="fa:fas fa-calendar-check" ${account.symbol === 'fa:fas fa-calendar-check' ? 'selected' : ''}>Calendar (FontAwesome)</option>
+              </optgroup>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label>Color</label>
+            <input type="color" name="edit-color" value="${account.color || '#e84c3d'}">
+          </div>
+          
+          <div class="form-group">
+            <label>Person</label>
+            <div class="person-options">
+              <div class="person-option">
+                <input type="radio" name="edit-person" id="edit-person-justus-${account.token}" value="justus" ${account.person === 'justus' || !account.person ? 'checked' : ''}>
+                <label for="edit-person-justus-${account.token}">
+                  <i class="fas fa-male"></i>
+                  <span>Justus</span>
+                </label>
+              </div>
+              <div class="person-option">
+                <input type="radio" name="edit-person" id="edit-person-marie-${account.token}" value="marie" ${account.person === 'marie' ? 'checked' : ''}>
+                <label for="edit-person-marie-${account.token}">
+                  <i class="fas fa-female"></i>
+                  <span>Marie</span>
+                </label>
+              </div>
+              <div class="person-option">
+                <input type="radio" name="edit-person" id="edit-person-gemeinsam-${account.token}" value="gemeinsam" ${account.person === 'gemeinsam' ? 'checked' : ''}>
+                <label for="edit-person-gemeinsam-${account.token}">
+                  <i class="fas fa-male"></i>
+                  <i class="fas fa-female"></i>
+                  <span>Gemeinsam</span>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-footer">
+            <button type="button" class="action-button" data-action="cancel">Cancel</button>
+            <button type="button" class="button" data-action="save">
+              <i class="fas fa-save"></i>
+              Save Changes
+            </button>
+          </div>
+        `;
+        
+        // Add event listeners to the form buttons
+        editForm.querySelector('[data-action="cancel"]').addEventListener('click', function() {
+          item.classList.remove('editing');
+        });
+        
+        editForm.querySelector('[data-action="save"]').addEventListener('click', function() {
+          const nameInput = editForm.querySelector('[name="edit-name"]');
+          const categorySelect = editForm.querySelector('[name="edit-category"]');
+          const symbolSelect = editForm.querySelector('[name="edit-symbol"]');
+          const colorInput = editForm.querySelector('[name="edit-color"]');
+          const personSelect = editForm.querySelector('[name="edit-person"]:checked');
+          
+          const updatedData = {
+            token: account.token,
+            name: nameInput.value,
+            category: categorySelect.value,
+            symbol: symbolSelect.value,
+            color: colorInput.value,
+            person: personSelect ? personSelect.value : (account.person || 'justus')
+          };
+          
+          // Send update request
+          updateAccount(updatedData, item);
+        });
+        
+        // Add all elements to the item
+        item.appendChild(info);
+        item.appendChild(editForm);
+        
+        return item;
+      }
+      
+      // Delete account function
+      function deleteAccount(token) {
+        const encodedToken = encodeURIComponent(token);
+        
+        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}/${encodedToken}`, {
+          method: 'DELETE'
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Remove from UI
+              const item = accountList.querySelector(`.account-item[data-token="${token}"]`);
+              if (item) {
+                item.remove();
+              }
+              
+              // Check if no accounts left
+              if (accountList.querySelectorAll('.account-item').length === 0) {
+                noAccounts.classList.remove('hidden');
+              }
+            } else {
+              alert('Error deleting account: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(error => {
+            console.error('Error deleting account:', error);
+            alert('Connection error. Please try again later.');
+          });
+      }
+      
+      // Update account function
+      function updateAccount(accountData, itemElement) {
+        fetch(`/MMM-StylishTodoist/api/accounts/${instanceId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(accountData)
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Exit edit mode
+              itemElement.classList.remove('editing');
+              
+              // Reload accounts to show updated data
+              loadAccounts();
+            } else {
+              alert('Error updating account: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(error => {
+            console.error('Error updating account:', error);
+            alert('Connection error. Please try again later.');
+          });
+      }
+      
+      // Initialize by loading settings
+      fetch(`/MMM-StylishTodoist/api/settings/${instanceId}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.settings) {
+            settings = data.settings;
+            maxEntries.value = settings.maximumEntries || 10;
+          }
+        })
+        .catch(error => {
+          console.error('Error loading settings:', error);
+        });
+    });
+  </script>
+</body>
+</html>

@@ -281,6 +281,15 @@ class TaskBuilder {
       let priorityText;
       switch (priority) {
         case 1:
+          priorityText = this.translate("PRIORITY_1") || "Priority 1 (High)";
+          break;
+        case 2:
+          priorityText = this.translate("PRIORITY_2") || "Priority 2 (Medium)";
+          break;
+        case 3:
+          priorityText = this.translate("PRIORITY_3") || "Priority 3 (Low)";
+          break;
+        case 4:
           priorityText = this.translate("PRIORITY_4") || "Priority 4 (None)";
           break;
       }
@@ -619,13 +628,4 @@ class TaskBuilder {
       
       return colorMap[colorName] || this.config.themeColor;
     }
-}1") || "Priority 1 (High)";
-          break;
-        case 2:
-          priorityText = this.translate("PRIORITY_2") || "Priority 2 (Medium)";
-          break;
-        case 3:
-          priorityText = this.translate("PRIORITY_3") || "Priority 3 (Low)";
-          break;
-        default:
-          priorityText = this.translate("PRIORITY_
+}

@@ -59,6 +59,57 @@
     gap: 8px;
   }
   
+  /* Date view styles */
+  .todoist-date-view {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  /* Day group styles */
+  .todoist-day-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeIn var(--todoist-transition-time);
+  }
+  
+  .day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  
+  .day-name {
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.02em;
+    color: var(--color-text-dimmed);
+  }
+  
+  .day-name.today {
+    color: var(--todoist-theme-color);
+    font-weight: bold;
+  }
+  
+  .day-name.overdue {
+    color: #ff5252;
+    font-weight: bold;
+  }
+  
+  .day-date {
+    font-size: 0.8em;
+    color: var(--color-text-dimmed);
+  }
+  
+  .day-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
   /* Project group styles */
   .todoist-project-group {
     display: flex;
@@ -286,47 +337,3 @@
       max-width: 100%; /* Full width on small screens */
     }
   }
-    gap: 15px;
-  }
-  
-  /* Day group styles */
-  .todoist-day-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    animation: fadeIn var(--todoist-transition-time);
-  }
-  
-  .day-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 5px;
-  }
-  
-  .day-name {
-    font-weight: 500;
-    text-transform: uppercase;
-    font-size: 0.85em;
-    letter-spacing: 0.02em;
-    color: var(--color-text-dimmed);
-  }
-  
-  .day-name.today {
-    color: var(--todoist-theme-color);
-    font-weight: bold;
-  }
-  
-  .day-name.overdue {
-    color: #ff5252;
-    font-weight: bold;
-  }
-  
-  .day-date {
-    font-size: 0.8em;
-    color: var(--color-text-dimmed);
-  }
-  
-  .day-tasks {
-    display: flex;
-    flex-direction: column;
