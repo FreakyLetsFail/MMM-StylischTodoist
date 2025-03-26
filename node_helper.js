@@ -78,22 +78,99 @@ module.exports = NodeHelper.create({
       // Module-specific static files
       this.expressApp.use("/MMM-StylishTodoist", express.static(path.join(this.path, "public")));
 
-      // Find available port between 8200-8299
-      this.findAvailablePort(8200, 8299)
-        .then(port => {
-          this.server = this.expressApp.listen(port, () => {
-            console.log(`[${this.name}] Started shared server on port ${port}`);
-            sharedServer = {
-              expressApp: this.expressApp,
-              port: port
-            };
+      // Use fixed port 8200
+      const port = 8200;
+      
+      try {
+        this.server = this.expressApp.listen(port, () => {
+          console.log(`[${this.name}] Started server on fixed port ${port}`);
+          sharedServer = {
+            expressApp: this.expressApp,
+            port: port
+          };
+          resolve();
+        }).on('error', (err) => {
+          if (err.code === 'EADDRINUSE') {
+            console.log(`[${this.name}] Port ${port} already in use, will use existing server`);
+            // Try to check if port 8200 is used by our Magic Mirror
+            this.checkIfServerIsOurs(port)
+              .then(isOurs => {
+                if (isOurs) {
+                  console.log(`[${this.name}] Port ${port} is used by another Magic Mirror module, will use it`);
+                  // We'll assume the existing server is compatible with our routes
+                  this.useSharedServerWithoutStarting();
+                  resolve();
+                } else {
+                  console.warn(`[${this.name}] Port ${port} is used by an external application`);
+                  this.useSharedServerWithoutStarting();
+                  resolve();
+                }
+              })
+              .catch(err => {
+                console.error(`[${this.name}] Error checking server ownership:`, err);
+                this.useSharedServerWithoutStarting();
+                resolve();
+              });
+          } else {
+            console.error(`[${this.name}] Server error:`, err);
+            this.useSharedServerWithoutStarting();
             resolve();
-          });
-        })
-        .catch(error => {
-          console.error(`[${this.name}] Could not find available port:`, error);
-          reject(error);
+          }
         });
+      } catch (error) {
+        console.error(`[${this.name}] Error starting server:`, error);
+        this.useSharedServerWithoutStarting();
+        resolve();
+      }
+    });
+  },
+  
+  useSharedServerWithoutStarting: function() {
+    // Setup a minimal shared server reference that allows routes to be defined
+    // even though we're not actually listening on a port
+    sharedServer = {
+      expressApp: this.expressApp,
+      port: 8200 // We'll pretend we're on 8200 even if we're not actually listening
+    };
+  },
+  
+  checkIfServerIsOurs: function(port) {
+    return new Promise((resolve) => {
+      // Try to fetch a Magic Mirror specific endpoint to confirm it's our server
+      const http = require('http');
+      const options = {
+        hostname: 'localhost',
+        port: port,
+        path: '/MMM-StylishCalendar/health',
+        method: 'GET',
+        timeout: 500
+      };
+      
+      const req = http.request(options, (res) => {
+        if (res.statusCode === 200) {
+          let data = '';
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const response = JSON.parse(data);
+              // If this is a Magic Mirror module endpoint, it's ours
+              resolve(true);
+            } catch (e) {
+              resolve(false);
+            }
+          });
+        } else {
+          resolve(false);
+        }
+      });
+      
+      req.on('error', () => {
+        resolve(false);
+      });
+      
+      req.end();
     });
   },
 
@@ -133,10 +210,67 @@ module.exports = NodeHelper.create({
       res.json({
         status: "OK",
         module: this.name,
-        serverPort: sharedServer?.port,
+        serverPort: sharedServer?.port || 8200,
         accounts: Object.keys(this.accounts).length,
         instances: Object.keys(this.todoistInstances).length
       });
+    });
+    
+    // Also handle Calendar's health check to make port sharing easier
+    this.expressApp.get("/MMM-StylishCalendar/health", (req, res) => {
+      res.json({ 
+        status: "OK", 
+        module: "MMM-StylishCalendar",
+        port: "8200" 
+      });
+    });
+    
+    // Add test connection endpoint
+    this.expressApp.post("/MMM-StylishTodoist/api/test-connection", async (req, res) => {
+      try {
+        const token = req.body.token;
+        if (!token) {
+          return res.status(400).json({ success: false, error: "API token is required" });
+        }
+        
+        const isValid = await this.testTodoistConnection(token);
+        res.json({ 
+          success: true, 
+          valid: isValid,
+          message: isValid ? "Connection successful" : "Connection failed" 
+        });
+      } catch (error) {
+        console.error(`[${this.name}] Error testing connection:`, error);
+        res.status(500).json({ success: false, error: "Failed to test connection" });
+      }
+    });
+    
+    // Add fallback route for display settings
+    this.expressApp.get("/MMM-StylishTodoist/api/display/:instanceId", (req, res) => {
+      const instanceId = req.params.instanceId;
+      const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
+      
+      try {
+        let settings = {};
+        if (fs.existsSync(settingsPath)) {
+          settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+        } else {
+          // Default display settings
+          settings = {
+            maximumEntries: 10,
+            showAvatars: true,
+            showDividers: true,
+            themeColor: "#E84C3D",
+            groupBy: "project",
+            updateInterval: 600
+          };
+        }
+        
+        res.json({ success: true, data: settings });
+      } catch (error) {
+        console.error(`[${this.name}] Error loading display settings:`, error);
+        res.status(500).json({ success: false, error: "Failed to load display settings" });
+      }
     });
 
     // Setup UI

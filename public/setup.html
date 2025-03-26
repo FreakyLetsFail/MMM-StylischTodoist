@@ -1739,6 +1739,9 @@
           
           let projectSection = '';
           
+          // Fixed showProjectHeaders variable
+          const showProjectHeaders = document.getElementById("showDividers")?.checked || true;
+          
           if (showProjectHeaders) {
             projectSection += `
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
