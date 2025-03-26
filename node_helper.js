@@ -33,6 +33,24 @@ module.exports = NodeHelper.create({
     this.expressApp.use(bodyParser.urlencoded({ extended: true }));
     this.expressApp.use("/MMM-StylishTodoist", express.static(path.resolve(module.exports.path + "/public")));
     
+    // Start a separate server on port 8200
+    try {
+      this.server = this.expressApp.listen(8200, () => {
+        console.log(`[MMM-StylishTodoist] Setup server running at http://localhost:8200/MMM-StylishTodoist/setup`);
+      });
+      
+      // Add error handling for the server
+      this.server.on('error', (e) => {
+        if (e.code === 'EADDRINUSE') {
+          console.error(`[MMM-StylishTodoist] Port 8200 is already in use! Setup UI may not be accessible.`);
+        } else {
+          console.error(`[MMM-StylishTodoist] Server error:`, e);
+        }
+      });
+    } catch (error) {
+      console.error(`[MMM-StylishTodoist] Failed to start server on port 8200:`, error);
+    }
+    
     // Setup API endpoints
     this.setupAPIRoutes();
     
@@ -525,28 +543,50 @@ module.exports = NodeHelper.create({
         // Flatten tasks from all accounts
         let allTasks = [].concat(...results);
         
-        // First sort tasks with due date to the top
-        allTasks.sort((a, b) => {
-          // Tasks without due date go to the end
-          if (!a.due && !b.due) return 0;
-          if (!a.due) return 1;
-          if (!b.due) return -1;
-          
+        // Create a separate array for tasks with due dates
+        const tasksWithDueDate = allTasks.filter(task => task.due);
+        const tasksWithoutDueDate = allTasks.filter(task => !task.due);
+        
+        console.log(`[MMM-StylishTodoist] Sorting ${tasksWithDueDate.length} tasks with due dates and ${tasksWithoutDueDate.length} tasks without due dates`);
+        
+        // Sort tasks with due dates by date (earlier first)
+        tasksWithDueDate.sort((a, b) => {
           return moment(a.due.date).valueOf() - moment(b.due.date).valueOf();
         });
         
-        // Then sort to make sure projects are grouped together
-        const byProject = {};
-        allTasks.forEach(task => {
+        // Now group both sets of tasks by project
+        const dueByProject = {};
+        const noDueByProject = {};
+        
+        // Group tasks with due dates by project
+        tasksWithDueDate.forEach(task => {
           const projectId = task.project_id || "no_project";
-          if (!byProject[projectId]) {
-            byProject[projectId] = [];
+          if (!dueByProject[projectId]) {
+            dueByProject[projectId] = [];
           }
-          byProject[projectId].push(task);
+          dueByProject[projectId].push(task);
         });
         
-        // Flatten keeping projects together
-        allTasks = Object.values(byProject).flat();
+        // Group tasks without due dates by project
+        tasksWithoutDueDate.forEach(task => {
+          const projectId = task.project_id || "no_project";
+          if (!noDueByProject[projectId]) {
+            noDueByProject[projectId] = [];
+          }
+          noDueByProject[projectId].push(task);
+        });
+        
+        // Flatten the arrays keeping project grouping, with due date tasks first
+        const sortedTasksWithDue = Object.values(dueByProject).flat();
+        const sortedTasksNoDue = Object.values(noDueByProject).flat();
+        
+        // Combine arrays: first all tasks with due dates, then all without
+        allTasks = [...sortedTasksWithDue, ...sortedTasksNoDue];
+        
+        console.log(`[MMM-StylishTodoist] Sorting complete. First 3 tasks:`);
+        allTasks.slice(0, 3).forEach((task, i) => {
+          console.log(`[MMM-StylishTodoist] Task ${i+1}: ${task.content.substring(0, 30)}... - Due: ${task.due ? task.due.date : 'none'}, Project: ${task.projectName}`);
+        });
         
         // Filter tasks based on config
         allTasks = this.filterTasks(allTasks, config);
@@ -564,6 +604,8 @@ module.exports = NodeHelper.create({
   },
   
   fetchProjects: function(instanceId, account) {
+    console.log(`[MMM-StylishTodoist] Fetching projects for account ${account.name}`);
+    
     const fetchOptions = {
       headers: {
         "Authorization": `Bearer ${account.token}`
@@ -573,17 +615,24 @@ module.exports = NodeHelper.create({
     return fetch("https://api.todoist.com/rest/v2/projects", fetchOptions)
       .then(response => {
         if (!response.ok) {
+          console.error(`[MMM-StylishTodoist] Error fetching projects, status: ${response.status}`);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
       })
       .then(projects => {
         console.log(`[MMM-StylishTodoist] Fetched ${projects.length} projects for account ${account.name}`);
+        // Add detailed logging for each project
+        projects.forEach(project => {
+          console.log(`[MMM-StylishTodoist] - Project: ${project.name}, ID: ${project.id}, Color: ${project.color}`);
+        });
         return projects;
       });
   },
   
   fetchTasks: function(instanceId, account) {
+    console.log(`[MMM-StylishTodoist] Fetching tasks for account ${account.name} with token: ${account.token ? account.token.substring(0, 5) + '...' : 'undefined'}`);
+    
     const fetchOptions = {
       headers: {
         "Authorization": `Bearer ${account.token}`
@@ -594,9 +643,14 @@ module.exports = NodeHelper.create({
     const userPromise = fetch("https://api.todoist.com/rest/v2/user", fetchOptions)
       .then(response => {
         if (!response.ok) {
+          console.error(`[MMM-StylishTodoist] Error fetching user, status: ${response.status}`);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
+      })
+      .then(userData => {
+        console.log(`[MMM-StylishTodoist] Successfully fetched user data for ${account.name}, avatar URL: ${userData.avatar_url ? 'present' : 'missing'}`);
+        return userData;
       })
       .catch(error => {
         console.error(`[MMM-StylishTodoist] Error fetching user info for account ${account.name}:`, error);
@@ -607,14 +661,21 @@ module.exports = NodeHelper.create({
     const tasksPromise = fetch("https://api.todoist.com/rest/v2/tasks", fetchOptions)
       .then(response => {
         if (!response.ok) {
+          console.error(`[MMM-StylishTodoist] Error fetching tasks, status: ${response.status}`);
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
+      })
+      .then(tasks => {
+        console.log(`[MMM-StylishTodoist] Successfully fetched ${tasks.length} tasks for ${account.name}`);
+        return tasks;
       });
     
     // Combine the results
     return Promise.all([userPromise, tasksPromise])
       .then(([userInfo, tasks]) => {
+        console.log(`[MMM-StylishTodoist] Processing ${tasks.length} tasks with user info ${userInfo ? 'present' : 'missing'}`);
+        
         // Enhance tasks with account information
         return tasks.map(task => {
           // Find project information
@@ -623,7 +684,7 @@ module.exports = NodeHelper.create({
             color: "grey"
           };
           
-          return {
+          const taskWithInfo = {
             ...task,
             accountName: account.name,
             accountSymbol: account.symbol,
@@ -635,6 +696,8 @@ module.exports = NodeHelper.create({
             avatar: userInfo ? userInfo.avatar_url : null,
             person: account.person || "default"
           };
+          
+          return taskWithInfo;
         });
       });
   },

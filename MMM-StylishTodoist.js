@@ -145,6 +145,17 @@ Module.register("MMM-StylishTodoist", {
       wrapper.innerHTML = this.translate("LOADING");
       wrapper.className = "MMM-StylishTodoist-wrapper dimmed";
       console.log(`[${this.name}] Tasks loading - awaiting tasks from backend`);
+      
+      // Check for API token for troubleshooting
+      if (this.config.accounts && this.config.accounts.length > 0) {
+        const tokensSummary = this.config.accounts.map(acc => {
+          return `${acc.name}: ${acc.token ? 'Token present' : 'No token!'}`;
+        }).join(', ');
+        console.log(`[${this.name}] Current accounts configuration: ${tokensSummary}`);
+      } else {
+        console.log(`[${this.name}] No accounts configured in the config`);
+      }
+      
       return wrapper;
     }
     

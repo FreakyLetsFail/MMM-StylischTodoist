@@ -321,18 +321,25 @@ class TaskBuilder {
       const taskElement = document.createElement("div");
       taskElement.className = "todoist-task";
       
+      // Log for debugging
+      console.log(`Building task element for: ${task.content}, avatar: ${task.avatar ? 'yes' : 'no'}, person: ${task.person}`);
+      
       // Add any person-specific classes
       if (task.person) {
         taskElement.classList.add(`person-${task.person}`);
+        console.log(`Added person class: person-${task.person}`);
       }
       
       // Add color coding based on project or priority
       if (this.config.colorizeByProject && task.projectColor) {
-        taskElement.style.setProperty("--task-color", this.getTodoistColor(task.projectColor));
+        const color = this.getTodoistColor(task.projectColor);
+        taskElement.style.setProperty("--task-color", color);
+        console.log(`Using project color: ${color} for project ${task.projectName}`);
       } else {
         // Default to priority colors
         const priorityColor = this.priorityColors[task.priority] || this.priorityColors[4];
         taskElement.style.setProperty("--task-color", priorityColor);
+        console.log(`Using priority color: ${priorityColor} for priority ${task.priority}`);
       }
       
       // Add account avatar or symbol/icon
@@ -347,6 +354,7 @@ class TaskBuilder {
         avatarContainer.appendChild(avatar);
         
         taskElement.appendChild(avatarContainer);
+        console.log(`Added avatar image from URL: ${task.avatar}`);
       } 
       // Fall back to symbol if no avatar or displaySymbol is true
       else if (this.config.displaySymbol) {
@@ -360,6 +368,7 @@ class TaskBuilder {
         symbolContainer.appendChild(this.createIcon(symbol, task.accountColor));
         
         taskElement.appendChild(symbolContainer);
+        console.log(`Added symbol: ${symbol} with color ${task.accountColor}`);
       }
       
       // Add priority indicator for priority 1-3
