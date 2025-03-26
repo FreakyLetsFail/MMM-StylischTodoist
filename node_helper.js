@@ -205,6 +205,22 @@ module.exports = NodeHelper.create({
       return;
     }
 
+    // Always accept 'default' as a valid instance ID
+    const handleInstanceParam = (req, res, next) => {
+      // If the instance doesn't exist but 'default' is requested, create it
+      if (req.params.instanceId === 'default' && !this.todoistInstances['default']) {
+        console.log(`[${this.name}] Creating default instance for API request`);
+        this.todoistInstances['default'] = {
+          config: {
+            updateInterval: 10 * 60 * 1000,
+            maximumEntries: 30
+          },
+          lastUpdated: null
+        };
+      }
+      next();
+    };
+
     // Health check endpoint
     this.expressApp.get("/MMM-StylishTodoist/health", (req, res) => {
       console.log(`[${this.name}] Health check requested from ${req.ip}`); 
@@ -251,7 +267,7 @@ module.exports = NodeHelper.create({
     });
     
     // Add account sync endpoint
-    this.expressApp.post("/MMM-StylishTodoist/api/sync-account/:instanceId", async (req, res) => {
+    this.expressApp.post("/MMM-StylishTodoist/api/sync-account/:instanceId", handleInstanceParam, async (req, res) => {
       try {
         const instanceId = req.params.instanceId;
         const { token } = req.body;
@@ -262,11 +278,20 @@ module.exports = NodeHelper.create({
         
         console.log(`[${this.name}] Manual sync requested for account from ${req.ip}`);
         
+        // Create a minimal account object if it doesn't exist
+        if (!this.accounts[token]) {
+          this.accounts[token] = {
+            token: token,
+            name: "Todoist",
+            category: "default",
+            tasks: [],
+            projects: [],
+            lastFetched: null
+          };
+        }
+        
         // Fetch data for this specific account
         const account = this.accounts[token];
-        if (!account) {
-          return res.status(404).json({ success: false, error: "Account not found" });
-        }
         
         // Directly fetch data for this account
         try {
@@ -298,7 +323,7 @@ module.exports = NodeHelper.create({
     });
     
     // Add fallback route for display settings
-    this.expressApp.get("/MMM-StylishTodoist/api/display/:instanceId", (req, res) => {
+    this.expressApp.get("/MMM-StylishTodoist/api/display/:instanceId", handleInstanceParam, (req, res) => {
       const instanceId = req.params.instanceId;
       const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
       
@@ -332,10 +357,11 @@ module.exports = NodeHelper.create({
     });
 
     // Refresh API
-    this.expressApp.post("/MMM-StylishTodoist/api/refresh/:instanceId", (req, res) => {
+    this.expressApp.post("/MMM-StylishTodoist/api/refresh/:instanceId", handleInstanceParam, (req, res) => {
       const instanceId = req.params.instanceId;
       
       if (!this.todoistInstances[instanceId]) {
+        console.error(`[${this.name}] Instance not found: ${instanceId}`);
         return res.status(404).json({ 
           success: false, 
           error: "Instance not found" 
@@ -354,39 +380,46 @@ module.exports = NodeHelper.create({
     });
     
     // Account API
-    this.expressApp.get("/MMM-StylishTodoist/api/accounts/:instanceId", (req, res) => {
+    this.expressApp.get("/MMM-StylishTodoist/api/accounts/:instanceId", handleInstanceParam, (req, res) => {
       this.handleGetAccounts(req, res);
     });
     
     this.expressApp.post("/MMM-StylishTodoist/api/accounts/:instanceId", 
+      handleInstanceParam,
       this.validateAccountData.bind(this),
       this.handleAddAccount.bind(this)
     );
 
     this.expressApp.put("/MMM-StylishTodoist/api/accounts/:instanceId", 
+      handleInstanceParam,
       this.validateAccountData.bind(this),
       this.handleUpdateAccount.bind(this)
     );
 
     this.expressApp.delete("/MMM-StylishTodoist/api/accounts/:instanceId/:token", 
+      handleInstanceParam,
       this.handleDeleteAccount.bind(this)
     );
 
     // Projects API
     this.expressApp.get("/MMM-StylishTodoist/api/projects/:instanceId", 
+      handleInstanceParam,
       this.handleGetProjects.bind(this)
     );
 
     this.expressApp.post("/MMM-StylishTodoist/api/projects/:instanceId", 
+      handleInstanceParam,
       this.handleSaveProjects.bind(this)
     );
 
     // Settings API
     this.expressApp.get("/MMM-StylishTodoist/api/settings/:instanceId", 
+      handleInstanceParam,
       this.handleGetSettings.bind(this)
     );
 
     this.expressApp.post("/MMM-StylishTodoist/api/settings/:instanceId", 
+      handleInstanceParam,
       this.handleSaveSettings.bind(this)
     );
 
@@ -401,11 +434,11 @@ module.exports = NodeHelper.create({
       });
     }
 
-    // Basic token format validation
-    if (!/^[a-zA-Z0-9]{40}$/.test(req.body.token)) {
+    // Basic token format validation - be more lenient with token format
+    if (req.body.token.length < 20) {
       return res.status(400).json({ 
         success: false, 
-        error: "Invalid API token format" 
+        error: "Invalid API token format, token should be at least 20 characters" 
       });
     }
 
@@ -593,16 +626,19 @@ module.exports = NodeHelper.create({
       
       if (fs.existsSync(projectsPath)) {
         projects = JSON.parse(fs.readFileSync(projectsPath, "utf8"));
+        console.log(`[${this.name}] Loaded ${projects.length} projects from cache`);
       } else {
         // If no cached projects, fetch from active accounts
-        const instance = this.todoistInstances[instanceId];
-        if (instance && instance.config.accounts) {
-          projects = this.fetchAllProjects(instance.config.accounts)
+        console.log(`[${this.name}] No cached projects, will attempt to fetch from accounts`);
+        if (Object.keys(this.accounts).length > 0) {
+          this.fetchAllProjects(Object.values(this.accounts))
             .then(projects => {
               fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2));
-              return projects;
+              console.log(`[${this.name}] Cached ${projects.length} projects`);
             })
-            .catch(() => []);
+            .catch(error => {
+              console.error(`[${this.name}] Error fetching projects:`, error);
+            });
         }
       }
       
@@ -725,22 +761,43 @@ module.exports = NodeHelper.create({
 
   /* Core Functions */
   socketNotificationReceived: function(notification, payload) {
+    console.log(`[${this.name}] Received notification: ${notification}`, payload);
+    
     if (!this.isInitialized) {
-      console.warn(`[${this.name}] Received notification before initialization: ${notification}`);
-      return;
+      console.log(`[${this.name}] Initializing before processing ${notification}`);
+      this.isInitialized = true;
+      
+      // Setup express app if not already set
+      if (!this.expressApp) {
+        this.expressApp = express();
+        this.expressApp.use(bodyParser.json({ limit: '10mb' }));
+        this.expressApp.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+        
+        // Module-specific static files
+        this.expressApp.use("/MMM-StylishTodoist", express.static(path.join(this.path, "public")));
+        
+        // Setup API routes
+        this.setupAPIRoutes();
+      }
     }
 
     switch (notification) {
+      case "CONFIG":
+        // Legacy support - map CONFIG to INIT_TODOIST
+        this.initTodoist(payload.identifier || "default", payload);
+        break;
+        
       case "INIT_TODOIST":
-        this.initTodoist(payload.instanceId, payload.config);
+        this.initTodoist(payload.instanceId || payload.identifier || "default", payload.config || payload);
         break;
         
       case "GET_TODOIST_TASKS":
-        this.getTodoistTasks(payload.instanceId, payload.config);
+        this.getTodoistTasks(payload.instanceId || payload.identifier || "default", payload.config || payload);
         break;
         
+      case "UPDATE_TASKS":
       case "REFRESH_TASKS":
-        this.refreshTasks(payload.instanceId);
+        this.refreshTasks(payload.instanceId || payload.identifier || "default");
         break;
         
       default:
@@ -807,7 +864,7 @@ module.exports = NodeHelper.create({
   getTodoistTasks: function(instanceId, config) {
     if (!this.todoistInstances[instanceId]) {
       console.error(`[${this.name}] Instance ${instanceId} not initialized`);
-      return;
+      this.initTodoist(instanceId, config);
     }
 
     // Update config from storage
@@ -815,7 +872,10 @@ module.exports = NodeHelper.create({
     
     const instance = this.todoistInstances[instanceId];
     
-    if (!instance.config.accounts || instance.config.accounts.length === 0) {
+    // Check if we actually have any accounts configured
+    const accounts = this.getConfiguredAccounts(instanceId);
+    
+    if (accounts.length === 0) {
       console.warn(`[${this.name}] No accounts configured for ${instanceId}`);
       this.sendSocketNotification("TODOIST_TASKS", { 
         instanceId, 
@@ -825,9 +885,9 @@ module.exports = NodeHelper.create({
       return;
     }
     
-    console.log(`[${this.name}] Fetching tasks for ${instanceId}`);
+    console.log(`[${this.name}] Fetching tasks for ${instanceId} (${accounts.length} accounts)`);
     
-    const fetchPromises = instance.config.accounts.map(accountConfig => {
+    const fetchPromises = accounts.map(accountConfig => {
       const account = this.initializeAccount(accountConfig);
       
       return this.fetchAccountData(account)
@@ -858,7 +918,9 @@ module.exports = NodeHelper.create({
         });
         
         // Cache projects
-        this.cacheProjects(instance.config.accounts);
+        if (accounts.length > 0) {
+          this.cacheProjects(accounts);
+        }
         
         // Cache tasks for offline use
         this.cacheTasks(instanceId, processedTasks);
@@ -870,6 +932,40 @@ module.exports = NodeHelper.create({
           error: error.message 
         });
       });
+  },
+
+  getConfiguredAccounts: function(instanceId) {
+    // First try to get accounts from storage
+    const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
+    if (fs.existsSync(accountConfigPath)) {
+      try {
+        const accounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          return accounts;
+        }
+      } catch (error) {
+        console.error(`[${this.name}] Error reading accounts file:`, error);
+      }
+    }
+    
+    // If no accounts in storage, check the module config
+    const instance = this.todoistInstances[instanceId];
+    if (instance && instance.config) {
+      if (instance.config.apiToken) {
+        // Single token in config
+        return [{
+          token: instance.config.apiToken,
+          name: instance.config.accountName || "Todoist",
+          category: "default",
+          color: instance.config.themeColor || "#E84C3D"
+        }];
+      } else if (Array.isArray(instance.config.accounts) && instance.config.accounts.length > 0) {
+        // Multiple accounts in config
+        return instance.config.accounts;
+      }
+    }
+    
+    return [];
   },
 
   refreshTasks: function(instanceId) {
@@ -944,8 +1040,11 @@ module.exports = NodeHelper.create({
     .then(([tasks, userInfo]) => {
       console.log(`[${this.name}] Fetched ${tasks.length} tasks for ${account.name}`);
       
+      // Get projects if they're stored in the account object
+      const projects = account.projects || [];
+      
       return tasks.map(task => {
-        const project = account.projects.find(p => p.id === task.project_id) || {
+        const project = projects.find(p => p.id === task.project_id) || {
           name: "Inbox",
           color: "grey"
         };
@@ -1105,19 +1204,26 @@ module.exports = NodeHelper.create({
     const allProjects = [];
     
     accounts.forEach(account => {
-      if (account.projects) {
-        allProjects.push(...account.projects.map(p => ({
+      const accountObj = this.accounts[account.token];
+      if (accountObj && accountObj.projects) {
+        allProjects.push(...accountObj.projects.map(p => ({
           ...p,
-          account: account.name
+          account: accountObj.name
         })));
       }
     });
+    
+    if (allProjects.length === 0) {
+      console.log(`[${this.name}] No projects to cache`);
+      return;
+    }
     
     try {
       fs.writeFileSync(
         path.join(this.cachePath, "projects.json"),
         JSON.stringify(allProjects, null, 2)
       );
+      console.log(`[${this.name}] Cached ${allProjects.length} projects`);
     } catch (error) {
       console.error(`[${this.name}] Error caching projects:`, error);
     }
@@ -1129,6 +1235,7 @@ module.exports = NodeHelper.create({
         path.join(this.cachePath, `${instanceId}-tasks.json`),
         JSON.stringify(tasks, null, 2)
       );
+      console.log(`[${this.name}] Cached ${tasks.length} tasks for ${instanceId}`);
     } catch (error) {
       console.error(`[${this.name}] Error caching tasks:`, error);
     }
@@ -1169,21 +1276,31 @@ module.exports = NodeHelper.create({
     const avatarPath = path.join(this.cachePath, `avatar_${token.substring(0, 8)}.jpg`);
     if (fs.existsSync(avatarPath)) {
       fs.unlinkSync(avatarPath);
+      console.log(`[${this.name}] Removed avatar cache for ${token.substring(0, 5)}...`);
     }
   },
 
   /* Helper Functions */
   testTodoistConnection: function(token) {
+    if (!token) {
+      console.warn(`[${this.name}] Cannot test connection - no token provided`);
+      return Promise.resolve(false);
+    }
+    
+    console.log(`[${this.name}] Testing Todoist connection for token ${token.substring(0, 5)}...`);
+    
     return fetch("https://api.todoist.com/rest/v2/projects", {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(response => {
+      console.log(`[${this.name}] Todoist API response status: ${response.status}`);
       if (!response.ok) {
         throw new Error(`API returned status ${response.status}`);
       }
       return response.json();
     })
     .then(projects => {
+      console.log(`[${this.name}] Todoist API connection successful: ${Array.isArray(projects)} (received ${projects.length} projects)`);
       return Array.isArray(projects);
     })
     .catch(error => {
@@ -1193,13 +1310,37 @@ module.exports = NodeHelper.create({
   },
 
   fetchAllProjects: function(accounts) {
+    if (!accounts || accounts.length === 0) {
+      console.warn(`[${this.name}] No accounts provided for fetchAllProjects`);
+      return Promise.resolve([]);
+    }
+    
+    console.log(`[${this.name}] Fetching projects for ${accounts.length} accounts`);
+    
     return Promise.all(
-      accounts.map(account => 
-        this.fetchProjects(account)
-          .then(projects => projects.map(p => ({ ...p, account: account.name })))
-          .catch(() => [])
-      )
-    ).then(results => [].concat(...results));
+      accounts.map(account => {
+        if (!account.token) {
+          console.warn(`[${this.name}] Account without token provided`);
+          return Promise.resolve([]);
+        }
+        
+        console.log(`[${this.name}] Fetching projects for ${account.name || "unknown"}`);
+        
+        return this.fetchProjects({token: account.token, name: account.name})
+          .then(projects => {
+            console.log(`[${this.name}] Fetched ${projects.length} projects for ${account.name || "unknown"}`);
+            return projects.map(p => ({ ...p, account: account.name || "Unknown" }));
+          })
+          .catch(error => {
+            console.error(`[${this.name}] Error fetching projects for ${account.name || "unknown"}:`, error);
+            return [];
+          });
+      })
+    ).then(results => {
+      const allProjects = [].concat(...results);
+      console.log(`[${this.name}] Total projects fetched: ${allProjects.length}`);
+      return allProjects;
+    });
   },
 
   loadInitialData: function() {
@@ -1212,8 +1353,28 @@ module.exports = NodeHelper.create({
       
       accountFiles.forEach(file => {
         try {
-          const data = JSON.parse(fs.readFileSync(path.join(this.storagePath, file), "utf8"));
-          console.log(`[${this.name}] Loaded ${data.length} accounts from ${file}`);
+          const instanceId = file.replace('-accounts.json', '');
+          const accountsData = JSON.parse(fs.readFileSync(path.join(this.storagePath, file), "utf8"));
+          
+          if (Array.isArray(accountsData) && accountsData.length > 0) {
+            console.log(`[${this.name}] Loaded ${accountsData.length} accounts from ${file}`);
+            
+            // Initialize instance if needed
+            if (!this.todoistInstances[instanceId]) {
+              this.todoistInstances[instanceId] = {
+                config: {
+                  updateInterval: 10 * 60 * 1000,
+                  maximumEntries: 30
+                },
+                lastUpdated: null
+              };
+            }
+            
+            // Initialize accounts
+            accountsData.forEach(account => {
+              this.initializeAccount(account);
+            });
+          }
         } catch (err) {
           console.error(`[${this.name}] Error reading ${file}:`, err);
         }

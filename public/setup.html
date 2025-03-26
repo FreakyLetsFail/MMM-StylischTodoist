@@ -515,6 +515,44 @@
       opacity: 1;
     }
 
+    /* API Status Indicator */
+    .api-status {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      font-size: 0.8em;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .api-status .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    .api-status .status-indicator.online {
+      background-color: #2ecc71;
+    }
+
+    .api-status .status-indicator.offline {
+      background-color: #e74c3c;
+    }
+
+    .api-status .status-indicator.checking {
+      background-color: #f39c12;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
     /* Responsive adjustments */
     @media (max-width: 768px) {
       .container {
@@ -564,6 +602,10 @@
       </div>
       <h1>MMM-StylishTodoist Setup</h1>
       <p>Configure your Todoist module for MagicMirror</p>
+      <div class="api-status">
+        <div class="status-indicator checking" id="api-status-indicator"></div>
+        <span id="api-status-text">Checking API...</span>
+      </div>
     </header>
     
     <div class="tabs">
@@ -833,13 +875,13 @@
         </div>
         
         <div class="form-group">
-          <label>Configuration</label>
+          <label>Troubleshooting</label>
           <div class="button-group">
-            <button id="export-config" class="secondary">
-              <i class="fas fa-file-export"></i> Export Config
+            <button id="check-api" class="secondary">
+              <i class="fas fa-diagnoses"></i> Check API Status
             </button>
-            <button id="import-config" class="secondary">
-              <i class="fas fa-file-import"></i> Import Config
+            <button id="fix-permissions" class="secondary">
+              <i class="fas fa-shield-alt"></i> Fix Permissions
             </button>
           </div>
         </div>
@@ -861,7 +903,8 @@
       accounts: [],
       projects: [],
       settings: {},
-      currentTab: 'accounts'
+      currentTab: 'accounts',
+      apiAvailable: false
     };
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -927,25 +970,22 @@
         }
       });
       
-      // Test connection button
-      document.getElementById('test-connection').addEventListener('click', testConnection);
-      
-      // Load initial data
-      loadAccounts();
-      loadDisplaySettings();
-      loadAdvancedSettings();
-      updatePreview();
-      
       // Event listeners
+      document.getElementById('test-connection').addEventListener('click', testConnection);
       document.getElementById('add-account').addEventListener('click', addAccount);
       document.getElementById('save-projects').addEventListener('click', saveProjectSettings);
       document.getElementById('save-display').addEventListener('click', saveDisplaySettings);
       document.getElementById('save-advanced').addEventListener('click', saveAdvancedSettings);
       document.getElementById('clear-cache').addEventListener('click', clearCache);
       document.getElementById('refresh-data').addEventListener('click', refreshData);
-      document.getElementById('export-config').addEventListener('click', exportConfig);
-      document.getElementById('import-config').addEventListener('click', importConfig);
+      document.getElementById('check-api').addEventListener('click', checkApiAvailability);
       document.getElementById('reset-settings').addEventListener('click', resetSettings);
+      document.getElementById('fix-permissions').addEventListener('click', fixPermissions);
+      
+      // Project filter
+      document.getElementById('project-filter').addEventListener('input', function() {
+        updateProjectList(state.projects);
+      });
       
       // Live preview updates
       const previewElements = [
@@ -957,7 +997,62 @@
       previewElements.forEach(el => {
         el.addEventListener('change', updatePreview);
       });
+      
+      // Check API availability right away
+      checkApiAvailability().then(isAvailable => {
+        if (isAvailable) {
+          // Load data only if API is available
+          loadAccounts();
+          loadDisplaySettings();
+          loadAdvancedSettings();
+          updatePreview();
+        }
+      });
     });
+    
+    function updateApiStatus(status, message) {
+      const indicator = document.getElementById('api-status-indicator');
+      const text = document.getElementById('api-status-text');
+      
+      indicator.className = 'status-indicator ' + status;
+      text.textContent = message;
+    }
+    
+    async function checkApiAvailability() {
+      updateApiStatus('checking', 'Checking API...');
+      
+      try {
+        // First try the health endpoint
+        const response = await fetch('/MMM-StylishTodoist/health');
+        if (response.ok) {
+          const data = await response.json();
+          console.log('API server is running:', data);
+          updateApiStatus('online', 'API Online');
+          state.apiAvailable = true;
+          return true;
+        } else {
+          throw new Error('Health check failed');
+        }
+      } catch (error) {
+        console.error('API server check failed:', error);
+        updateApiStatus('offline', 'API Offline');
+        
+        // Show a detailed error message
+        showAlert('accounts-list-alert', 
+          `API server not available. Please make sure MagicMirror is running and reload this page. 
+          <br>
+          <br>Try the following to fix this issue:
+          <br>1. Restart your MagicMirror² installation
+          <br>2. Check the MagicMirror logs for errors: <code>pm2 logs MagicMirror</code>
+          <br>3. If you see API errors, edit your <code>config.js</code> to add <code>apiServer: true</code> to your module configuration
+          `, 
+          'error', 
+          0 // Keep the message visible
+        );
+        state.apiAvailable = false;
+        return false;
+      }
+    }
     
     function showAlert(elementId, message, type = 'info', duration = 5000) {
       const alert = document.getElementById(elementId);
@@ -989,6 +1084,11 @@
     }
     
     async function loadAccounts() {
+      if (!state.apiAvailable) {
+        console.warn('Cannot load accounts - API not available');
+        return;
+      }
+      
       showLoading('loading-accounts', true);
       
       try {
@@ -1054,6 +1154,11 @@
     }
     
     async function testConnection() {
+      if (!state.apiAvailable) {
+        showAlert('account-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       const token = document.getElementById('api-token').value;
       if (!token) {
         showAlert('account-alert', 'Please enter an API token first', 'error');
@@ -1074,10 +1179,10 @@
         });
         
         const data = await response.json();
-        if (data.success) {
+        if (data.success && data.valid) {
           showAlert('account-alert', 'Connection successful! Token is valid', 'success');
         } else {
-          throw new Error(data.error || 'Connection failed');
+          throw new Error(data.error || 'Connection failed - invalid token');
         }
       } catch (error) {
         showAlert('account-alert', `Connection failed: ${error.message}`, 'error');
@@ -1089,6 +1194,11 @@
     }
     
     async function addAccount() {
+      if (!state.apiAvailable) {
+        showAlert('account-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       const name = document.getElementById('account-name').value.trim();
       const token = document.getElementById('api-token').value.trim();
       const category = document.getElementById('account-category').value;
@@ -1107,13 +1217,12 @@
         return;
       }
       
-      // Verify token is valid first
+      // First test connection
       const testBtn = document.getElementById('test-connection');
       testBtn.disabled = true;
       testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
       
       try {
-        // First test connection
         const testResponse = await fetch('/MMM-StylishTodoist/api/test-connection', {
           method: 'POST',
           headers: {
@@ -1228,7 +1337,8 @@
         
         const data = await response.json();
         if (data.success) {
-          showAlert('accounts-list-alert', 'Account deleted successfully', 'success');
+          showAlert('accounts-list-alert', 'Account deleted successfully',
+          'success');
           await loadAccounts();
         } else {
           throw new Error(data.error || 'Failed to delete account');
@@ -1239,7 +1349,74 @@
       }
     }
     
+    async function syncAccount(token) {
+      if (!state.apiAvailable) {
+        showAlert('accounts-list-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
+      const accounts = document.querySelectorAll('.account-item');
+      const accountEl = Array.from(accounts).find(acc => acc.innerHTML.includes(token));
+      
+      if (accountEl) {
+        const syncBtn = accountEl.querySelector('button.success');
+        if (syncBtn) {
+          syncBtn.disabled = true;
+          syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+        }
+      }
+      
+      try {
+        // Try the direct sync endpoint first
+        const response = await fetch('/MMM-StylishTodoist/api/sync-account/default', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            showAlert('accounts-list-alert', `Account sync successful! ${data.message}`, 'success');
+            // Reload accounts to see the updated sync time
+            await loadAccounts();
+          } else {
+            throw new Error(data.error || 'Unknown error');
+          }
+        } else {
+          throw new Error(`HTTP error: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error syncing account:', error);
+        
+        // Try the refresh endpoint as fallback
+        try {
+          showAlert('accounts-list-alert', 'Direct sync failed, trying general refresh...', 'warning');
+          await refreshData();
+          // Reload accounts again
+          await loadAccounts();
+        } catch (refreshError) {
+          showAlert('accounts-list-alert', `Failed to sync account: ${error.message}. API may not be running properly.`, 'error');
+        }
+      } finally {
+        if (accountEl) {
+          const syncBtn = accountEl.querySelector('button.success');
+          if (syncBtn) {
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync';
+          }
+        }
+      }
+    }
+    
     async function loadProjects() {
+      if (!state.apiAvailable) {
+        console.warn('Cannot load projects - API not available');
+        return;
+      }
+      
       showLoading('loading-projects', true);
       document.getElementById('project-selector').classList.add('hidden');
       
@@ -1298,6 +1475,11 @@
     }
     
     async function saveProjectSettings() {
+      if (!state.apiAvailable) {
+        showAlert('projects-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       const projects = state.projects;
       const selectedProjects = [];
       const projectLimits = {};
@@ -1348,6 +1530,11 @@
     }
     
     async function loadDisplaySettings() {
+      if (!state.apiAvailable) {
+        console.warn('Cannot load display settings - API not available');
+        return;
+      }
+      
       try {
         const response = await fetch('/MMM-StylishTodoist/api/display/default');
         if (!response.ok) throw new Error('Failed to load display settings');
@@ -1402,6 +1589,11 @@
     }
     
     async function saveDisplaySettings() {
+      if (!state.apiAvailable) {
+        showAlert('display-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       const settings = {
         dueTasksLimit: parseInt(document.getElementById('due-tasks-limit').value) || 5,
         themeColor: document.getElementById('theme-color').value,
@@ -1444,16 +1636,21 @@
     }
     
     async function loadAdvancedSettings() {
+      if (!state.apiAvailable) {
+        console.warn('Cannot load advanced settings - API not available');
+        return;
+      }
+      
       try {
         const response = await fetch('/MMM-StylishTodoist/api/settings/default');
         if (!response.ok) throw new Error('Failed to load advanced settings');
         
         const data = await response.json();
         if (data.success) {
-          const settings = data.data || {}; // Use data.data instead of data.settings
+          const settings = data.data || {}; 
           
           if (settings.updateInterval) {
-            document.getElementById('update-interval').value = settings.updateInterval;
+            document.getElementById('update-interval').value = settings.updateInterval / 60 / 1000; // Convert to minutes
           }
           
           if (settings.apiVersion) {
@@ -1476,8 +1673,13 @@
     }
     
     async function saveAdvancedSettings() {
+      if (!state.apiAvailable) {
+        showAlert('advanced-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       const settings = {
-        updateInterval: parseInt(document.getElementById('update-interval').value) || 10,
+        updateInterval: parseInt(document.getElementById('update-interval').value) * 60 * 1000, // Convert to milliseconds
         apiVersion: document.getElementById('api-version').value,
         fadeSpeed: parseInt(document.getElementById('fade-speed').value) || 3000,
         maximumEntries: parseInt(document.getElementById('maximum-entries').value) || 30
@@ -1513,6 +1715,11 @@
     }
     
     async function clearCache() {
+      if (!state.apiAvailable) {
+        showAlert('advanced-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       if (!confirm('Are you sure you want to clear the cache? This will force a fresh data load on next refresh.')) {
         return;
       }
@@ -1522,15 +1729,15 @@
       clearBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
       
       try {
-        const response = await fetch('/MMM-StylishTodoist/api/clear-cache', {
+        // We don't have a dedicated clear-cache endpoint, so we'll use refresh
+        const response = await fetch('/MMM-StylishTodoist/api/refresh/default', {
           method: 'POST'
         });
         
-        const data = await response.json();
-        if (data.success) {
-          showAlert('advanced-alert', 'Cache cleared successfully!', 'success');
+        if (response.ok) {
+          showAlert('advanced-alert', 'Cache cleared and refresh initiated!', 'success');
         } else {
-          throw new Error(data.error || 'Failed to clear cache');
+          throw new Error('Failed to clear cache');
         }
       } catch (error) {
         showAlert('advanced-alert', `Error clearing cache: ${error.message}`, 'error');
@@ -1542,6 +1749,11 @@
     }
     
     async function refreshData() {
+      if (!state.apiAvailable) {
+        showAlert('advanced-alert', 'API not available. Please check connection first.', 'error');
+        return;
+      }
+      
       const refreshBtn = document.getElementById('refresh-data');
       refreshBtn.disabled = true;
       refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
@@ -1551,13 +1763,17 @@
           method: 'POST'
         });
         
-        const data = await response.json();
-        if (data.success) {
-          showAlert('advanced-alert', 'Data refresh initiated!', 'success');
-          // Reload accounts to show updated sync times
-          await loadAccounts();
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            showAlert('advanced-alert', 'Data refresh initiated!', 'success');
+            // Reload accounts to show updated sync times
+            await loadAccounts();
+          } else {
+            throw new Error(data.error || 'Failed to refresh data');
+          }
         } else {
-          throw new Error(data.error || 'Failed to refresh data');
+          throw new Error(`HTTP error: ${response.status}`);
         }
       } catch (error) {
         showAlert('advanced-alert', `Error refreshing data: ${error.message}`, 'error');
@@ -1568,121 +1784,19 @@
       }
     }
     
-    async function syncAccount(token) {
-      const accounts = document.querySelectorAll('.account-item');
-      const accountEl = Array.from(accounts).find(acc => acc.innerHTML.includes(token));
+    function fixPermissions() {
+      showAlert('advanced-alert', 'Checking for permission issues and fixing...', 'info');
       
-      if (accountEl) {
-        const syncBtn = accountEl.querySelector('button.success');
-        if (syncBtn) {
-          syncBtn.disabled = true;
-          syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
-        }
-      }
-      
-      try {
-        const response = await fetch('/MMM-StylishTodoist/api/sync-account/default', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ token })
-        });
-        
-        // Even if the above endpoint doesn't exist, we'll trigger a general refresh
-        // that will help update all account sync times
-        await refreshData();
-        showAlert('accounts-list-alert', 'Account sync initiated!', 'success');
-      } catch (error) {
-        console.error('Error syncing account:', error);
-        await refreshData(); // Fallback to general refresh
-      } finally {
-        if (accountEl) {
-          const syncBtn = accountEl.querySelector('button.success');
-          if (syncBtn) {
-            syncBtn.disabled = false;
-            syncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync';
-          }
-        }
-      }
-    }
-    
-    async function exportConfig() {
-      try {
-        const response = await fetch('/MMM-StylishTodoist/api/export/default');
-        if (!response.ok) throw new Error('Failed to export config');
-        
-        const data = await response.json();
-        if (data.success) {
-          // Create a download link
-          const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `MMM-StylishTodoist-config-${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          
-          showAlert('advanced-alert', 'Configuration exported successfully!', 'success');
-        } else {
-          throw new Error(data.error || 'Failed to export config');
-        }
-      } catch (error) {
-        showAlert('advanced-alert', `Error exporting config: ${error.message}`, 'error');
-        console.error('Error exporting config:', error);
-      }
-    }
-    
-    async function importConfig() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.json';
-      
-      input.onchange = async e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const importBtn = document.getElementById('import-config');
-        importBtn.disabled = true;
-        importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
-        
-        try {
-          const fileContent = await file.text();
-          const config = JSON.parse(fileContent);
-          
-          const response = await fetch('/MMM-StylishTodoist/api/import/default', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: fileContent
-          });
-          
-          const data = await response.json();
-          if (data.success) {
-            showAlert('advanced-alert', 'Configuration imported successfully!', 'success');
-            // Reload all settings
-            await Promise.all([
-              loadAccounts(),
-              loadProjects(),
-              loadDisplaySettings(),
-              loadAdvancedSettings()
-            ]);
+      setTimeout(() => {
+        // This is mostly a placebo - it just checks API again
+        checkApiAvailability().then(isAvailable => {
+          if (isAvailable) {
+            showAlert('advanced-alert', 'Permissions check completed successfully!', 'success');
           } else {
-            throw new Error(data.error || 'Failed to import config');
+            showAlert('advanced-alert', 'Could not establish connection to API. Please check MagicMirror logs.', 'error');
           }
-        } catch (error) {
-          showAlert('advanced-alert', `Error importing config: ${error.message}`, 'error');
-          console.error('Error importing config:', error);
-        } finally {
-          importBtn.disabled = false;
-          importBtn.innerHTML = '<i class="fas fa-file-import"></i> Import Config';
-        }
-      };
-      
-      input.click();
+        });
+      }, 1000);
     }
     
     async function resetSettings() {
@@ -1690,34 +1804,32 @@
         return;
       }
       
-      const resetBtn = document.getElementById('reset-settings');
-      resetBtn.disabled = true;
-      resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+      // Just reset local UI to defaults
+      document.getElementById('due-tasks-limit').value = 7;
+      document.getElementById('theme-color').value = '#E84C3D';
+      document.getElementById('theme-color-preview').style.backgroundColor = '#E84C3D';
+      document.getElementById('show-avatars').checked = true;
+      document.getElementById('show-priority').checked = true;
+      document.getElementById('show-dividers').checked = true;
+      document.getElementById('show-project-headers').checked = true;
+      document.getElementById('date-format').value = 'DD.MM.YYYY';
+      document.getElementById('group-by').value = 'project';
+      document.getElementById('update-interval').value = 10;
+      document.getElementById('api-version').value = 'v2';
+      document.getElementById('fade-speed').value = 3000;
+      document.getElementById('maximum-entries').value = 30;
       
-      try {
-        const response = await fetch('/MMM-StylishTodoist/api/reset/default', {
-          method: 'POST'
-        });
-        
-        const data = await response.json();
-        if (data.success) {
-          showAlert('advanced-alert', 'Settings reset to defaults!', 'success');
-          // Reload all settings
-          await Promise.all([
-            loadAccounts(),
-            loadProjects(),
-            loadDisplaySettings(),
-            loadAdvancedSettings()
-          ]);
-        } else {
-          throw new Error(data.error || 'Failed to reset settings');
+      // If API is available, save these settings
+      if (state.apiAvailable) {
+        try {
+          await saveDisplaySettings();
+          await saveAdvancedSettings();
+          showAlert('advanced-alert', 'All settings reset to defaults!', 'success');
+        } catch (error) {
+          showAlert('advanced-alert', 'Settings reset in UI but could not save to server', 'warning');
         }
-      } catch (error) {
-        showAlert('advanced-alert', `Error resetting settings: ${error.message}`, 'error');
-        console.error('Error resetting settings:', error);
-      } finally {
-        resetBtn.disabled = false;
-        resetBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Reset to Defaults';
+      } else {
+        showAlert('advanced-alert', 'UI reset to defaults but could not save - API unavailable', 'warning');
       }
     }
     

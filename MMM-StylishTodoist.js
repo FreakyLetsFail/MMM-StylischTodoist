@@ -19,15 +19,43 @@ Module.register("MMM-StylishTodoist", {
   
     requiresVersion: "2.15.0",
   
+    // Replace the start function in MMM-StylishTodoist.js with this:
     start: function() {
       Log.info(`Starting module: ${this.name}`);
+      
+      // Generate a unique identifier for this module instance
+      this.identifier = this.identifier || `todoist_${Math.floor(Math.random() * 1000)}`;
+      
       this.tasks = [];
       this.projects = [];
       this.loaded = false;
       this.error = null;
       this.lastUpdated = null;
-      this.sendSocketNotification("CONFIG", this.config);
+      
+      // Send the configuration to the node helper
+      this.sendSocketNotification("CONFIG", {
+        identifier: this.identifier,
+        config: this.config
+      });
+      
+      // Schedule the first update
       this.scheduleUpdate();
+    },
+
+    // And modify the scheduleUpdate function:
+    scheduleUpdate: function() {
+      setInterval(() => {
+        this.sendSocketNotification("UPDATE_TASKS", {
+          identifier: this.identifier
+        });
+      }, this.config.updateInterval);
+      
+      // Also do an immediate update
+      setTimeout(() => {
+        this.sendSocketNotification("UPDATE_TASKS", {
+          identifier: this.identifier
+        });
+      }, 1000);
     },
   
     getStyles: function() {
