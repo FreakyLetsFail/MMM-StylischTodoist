@@ -1,0 +1,332 @@
+/*
+ * MMM-StylishTodoist
+ * MIT license
+ *
+ * Style sheet for the stylish Todoist module
+ */
+
+ :root {
+    --todoist-theme-color: #e84c3d;
+    --todoist-theme-color-light: #ee7669;
+    --todoist-theme-color-dark: #c62918;
+    --todoist-task-color: var(--todoist-theme-color);
+    
+    /* Animation timings */
+    --todoist-transition-time: 1500ms;
+    --todoist-text-time: 480ms;
+  }
+  
+  .MMM-StylishTodoist-wrapper {
+    max-width: 500px;
+    margin: 0 auto;
+    color: var(--color-text);
+    font-size: 0.9em;
+    line-height: 1.3;
+  }
+  
+  /* Header styles */
+  .todoist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .todoist-title {
+    display: flex;
+    align-items: center;
+    font-size: 1.2em;
+    font-weight: 500;
+    color: var(--todoist-theme-color);
+  }
+  
+  .todoist-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--todoist-theme-color);
+  }
+  
+  /* Task view styles */
+  .todoist-tasks-view {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  /* Project group styles */
+  .todoist-project-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeIn var(--todoist-transition-time);
+    --project-color: var(--todoist-theme-color);
+  }
+  
+  .project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  
+  .project-name {
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.02em;
+    color: var(--project-color);
+  }
+  
+  .project-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  /* Priority group styles */
+  .todoist-priority-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeIn var(--todoist-transition-time);
+    --priority-color: var(--todoist-theme-color);
+  }
+  
+  .priority-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  
+  .priority-name {
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.02em;
+    color: var(--priority-color);
+  }
+  
+  .priority-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  /* Task styles */
+  .todoist-task {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+    border-left: 4px solid var(--task-color, var(--todoist-theme-color));
+    transition: all 0.3s ease;
+    margin-bottom: 4px;
+  }
+  
+  .todoist-task:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+  
+  .task-symbol {
+    min-width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--task-color, var(--todoist-theme-color));
+    margin-right: 8px;
+  }
+  
+  .task-symbol svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .task-symbol i {
+    font-size: 18px;
+  }
+  
+  .task-priority {
+    min-width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: white;
+    font-size: 0.7em;
+    font-weight: bold;
+    margin-right: 8px;
+  }
+  
+  .task-due-date {
+    min-width: 90px;
+    font-size: 0.85em;
+    color: var(--color-text-dimmed);
+    display: flex;
+    align-items: center;
+  }
+  
+  .task-due-date.overdue {
+    color: #ff5252;
+    font-weight: 500;
+  }
+  
+  .task-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .task-title {
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  
+  .task-project {
+    font-size: 0.8em;
+    color: var(--color-text-dimmed);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .project-icon {
+    width: 12px;
+    height: 12px;
+  }
+  
+  .task-description {
+    font-size: 0.8em;
+    color: var(--color-text-dimmed);
+    opacity: 0.8;
+  }
+  
+  /* Legend styles */
+  .todoist-legend {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    animation: fadeIn var(--todoist-transition-time);
+  }
+  
+  .legend-title {
+    font-size: 0.85em;
+    text-transform: uppercase;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: var(--color-text-dimmed);
+    letter-spacing: 0.02em;
+  }
+  
+  .legend-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(0, 0, 0, 0.1);
+    padding: 6px 10px;
+    border-radius: 6px;
+    max-width: 48%; /* Two columns on wider screens */
+  }
+  
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+  
+  .legend-name {
+    font-size: 0.8em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  /* Animation classes */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes slideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  /* Responsive adjustments */
+  @media screen and (max-width: 400px) {
+    .todoist-task {
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .task-due-date {
+      min-width: auto;
+    }
+    
+    .legend-item {
+      max-width: 100%; /* Full width on small screens */
+    }
+  }
+    gap: 15px;
+  }
+  
+  /* Day group styles */
+  .todoist-day-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: fadeIn var(--todoist-transition-time);
+  }
+  
+  .day-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+  
+  .day-name {
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.02em;
+    color: var(--color-text-dimmed);
+  }
+  
+  .day-name.today {
+    color: var(--todoist-theme-color);
+    font-weight: bold;
+  }
+  
+  .day-name.overdue {
+    color: #ff5252;
+    font-weight: bold;
+  }
+  
+  .day-date {
+    font-size: 0.8em;
+    color: var(--color-text-dimmed);
+  }
+  
+  .day-tasks {
+    display: flex;
+    flex-direction: column;

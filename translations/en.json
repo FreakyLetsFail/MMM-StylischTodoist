@@ -1,0 +1,16 @@
+{
+    "LOADING": "Loading tasks...",
+    "NO_TASKS": "No upcoming tasks",
+    "TASKS": "Todoist Tasks",
+    "TODAY": "Today",
+    "TOMORROW": "Tomorrow",
+    "OVERDUE": "Overdue",
+    "NO_DATE": "No Due Date",
+    "PRIORITY_1": "Priority 1 (High)",
+    "PRIORITY_2": "Priority 2 (Medium)",
+    "PRIORITY_3": "Priority 3 (Low)",
+    "PRIORITY_4": "Priority 4 (None)",
+    "PROJECTS": "Projects",
+    "ACCOUNTS": "Accounts",
+    "SETUP": "Setup"
+  }
