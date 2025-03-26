@@ -250,6 +250,53 @@ module.exports = NodeHelper.create({
       }
     });
     
+    // Add account sync endpoint
+    this.expressApp.post("/MMM-StylishTodoist/api/sync-account/:instanceId", async (req, res) => {
+      try {
+        const instanceId = req.params.instanceId;
+        const { token } = req.body;
+        
+        if (!token) {
+          return res.status(400).json({ success: false, error: "API token is required" });
+        }
+        
+        console.log(`[${this.name}] Manual sync requested for account from ${req.ip}`);
+        
+        // Fetch data for this specific account
+        const account = this.accounts[token];
+        if (!account) {
+          return res.status(404).json({ success: false, error: "Account not found" });
+        }
+        
+        // Directly fetch data for this account
+        try {
+          const { tasks, projects } = await this.fetchAccountData(account);
+          account.tasks = tasks;
+          account.projects = projects;
+          account.lastFetched = new Date();
+          
+          console.log(`[${this.name}] Manual sync completed for ${account.name}, fetched ${tasks.length} tasks`);
+          
+          // Trigger a refresh for any modules using this account
+          Object.keys(this.todoistInstances).forEach(id => {
+            this.refreshTasks(id);
+          });
+          
+          res.json({
+            success: true,
+            message: `Synced ${tasks.length} tasks for ${account.name}`,
+            lastUpdated: account.lastFetched
+          });
+        } catch (error) {
+          console.error(`[${this.name}] Error syncing account data:`, error);
+          return res.status(500).json({ success: false, error: "Failed to sync account data" });
+        }
+      } catch (error) {
+        console.error(`[${this.name}] Error in sync endpoint:`, error);
+        res.status(500).json({ success: false, error: "Internal server error" });
+      }
+    });
+    
     // Add fallback route for display settings
     this.expressApp.get("/MMM-StylishTodoist/api/display/:instanceId", (req, res) => {
       const instanceId = req.params.instanceId;
@@ -284,6 +331,28 @@ module.exports = NodeHelper.create({
       res.sendFile(path.join(this.path, "public", "setup.html"));
     });
 
+    // Refresh API
+    this.expressApp.post("/MMM-StylishTodoist/api/refresh/:instanceId", (req, res) => {
+      const instanceId = req.params.instanceId;
+      
+      if (!this.todoistInstances[instanceId]) {
+        return res.status(404).json({ 
+          success: false, 
+          error: "Instance not found" 
+        });
+      }
+      
+      console.log(`[${this.name}] Refresh requested for instance ${instanceId} from ${req.ip}`);
+      
+      // Trigger a refresh
+      this.refreshTasks(instanceId);
+      
+      res.json({
+        success: true,
+        message: "Refresh initiated"
+      });
+    });
+    
     // Account API
     this.expressApp.get("/MMM-StylishTodoist/api/accounts/:instanceId", (req, res) => {
       this.handleGetAccounts(req, res);

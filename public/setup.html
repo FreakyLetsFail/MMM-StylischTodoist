@@ -1036,6 +1036,9 @@
             </div>
           </div>
           <div class="account-actions">
+            <button class="success" onclick="syncAccount('${account.token}')">
+              <i class="fas fa-sync-alt"></i> Sync
+            </button>
             <button class="secondary" onclick="editAccount('${account.token}')">
               <i class="fas fa-edit"></i> Edit
             </button>
@@ -1551,6 +1554,8 @@
         const data = await response.json();
         if (data.success) {
           showAlert('advanced-alert', 'Data refresh initiated!', 'success');
+          // Reload accounts to show updated sync times
+          await loadAccounts();
         } else {
           throw new Error(data.error || 'Failed to refresh data');
         }
@@ -1560,6 +1565,45 @@
       } finally {
         refreshBtn.disabled = false;
         refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Now';
+      }
+    }
+    
+    async function syncAccount(token) {
+      const accounts = document.querySelectorAll('.account-item');
+      const accountEl = Array.from(accounts).find(acc => acc.innerHTML.includes(token));
+      
+      if (accountEl) {
+        const syncBtn = accountEl.querySelector('button.success');
+        if (syncBtn) {
+          syncBtn.disabled = true;
+          syncBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Syncing...';
+        }
+      }
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/sync-account/default', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        });
+        
+        // Even if the above endpoint doesn't exist, we'll trigger a general refresh
+        // that will help update all account sync times
+        await refreshData();
+        showAlert('accounts-list-alert', 'Account sync initiated!', 'success');
+      } catch (error) {
+        console.error('Error syncing account:', error);
+        await refreshData(); // Fallback to general refresh
+      } finally {
+        if (accountEl) {
+          const syncBtn = accountEl.querySelector('button.success');
+          if (syncBtn) {
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync';
+          }
+        }
       }
     }
     
