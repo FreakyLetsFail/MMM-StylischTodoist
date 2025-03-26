@@ -11,6 +11,10 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
 const fs = require("fs");
+const net = require("net");
+
+// Shared server instance for all modules
+let sharedServer = null;
 
 module.exports = NodeHelper.create({
   start: function() {
@@ -21,22 +25,27 @@ module.exports = NodeHelper.create({
     this.settings = {};
     this.cachePath = path.join(__dirname, "cache");
     this.storagePath = path.join(this.path, "accounts");
-    
+    this.isInitialized = false;
+
     // Initialize directories
     this.initializeDirectories();
     
-    // Setup express server
-    this.initializeServer();
-    
-    // Setup API routes
-    this.setupAPIRoutes();
-    
-    // Load existing data
-    this.loadInitialData();
+    // Setup shared express server
+    this.initializeServer()
+      .then(() => {
+        // Setup API routes
+        this.setupAPIRoutes();
+        // Load existing data
+        this.loadInitialData();
+        this.isInitialized = true;
+        console.log(`[${this.name}] Initialization complete`);
+      })
+      .catch(error => {
+        console.error(`[${this.name}] Initialization failed:`, error);
+      });
   },
 
   initializeDirectories: function() {
-    // Create storage paths if they don't exist
     [this.storagePath, this.cachePath].forEach(dir => {
       try {
         if (!fs.existsSync(dir)) {
@@ -50,148 +59,148 @@ module.exports = NodeHelper.create({
   },
 
   initializeServer: function() {
-    this.expressApp = express();
-    this.expressApp.use(bodyParser.json({ limit: '10mb' }));
-    this.expressApp.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
-    this.expressApp.use("/MMM-StylishTodoist", express.static(path.join(this.path, "public")));
-    
-    try {
-      this.server = this.expressApp.listen(8200, () => {
-        console.log(`[${this.name}] Setup server running at http://localhost:8200/MMM-StylishTodoist/setup`);
-      });
+    return new Promise((resolve, reject) => {
+      // Use existing shared server if available
+      if (sharedServer) {
+        this.expressApp = sharedServer.expressApp;
+        console.log(`[${this.name}] Using existing shared server on port ${sharedServer.port}`);
+        return resolve();
+      }
+
+      // Create new express app
+      this.expressApp = express();
+      this.expressApp.use(bodyParser.json({ limit: '10mb' }));
+      this.expressApp.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
+
+      // Shared static files for all modules
+      this.expressApp.use("/MMM-StylishModules", express.static(path.join(this.path, "../public")));
       
-      this.server.on('error', (e) => {
-        if (e.code === 'EADDRINUSE') {
-          console.error(`[${this.name}] Port 8200 in use! Trying alternative port...`);
-          this.server = this.expressApp.listen(0, () => {
-            console.log(`[${this.name}] Setup server running on alternative port: ${this.server.address().port}`);
+      // Module-specific static files
+      this.expressApp.use("/MMM-StylishTodoist", express.static(path.join(this.path, "public")));
+
+      // Find available port between 8200-8299
+      this.findAvailablePort(8200, 8299)
+        .then(port => {
+          this.server = this.expressApp.listen(port, () => {
+            console.log(`[${this.name}] Started shared server on port ${port}`);
+            sharedServer = {
+              expressApp: this.expressApp,
+              port: port
+            };
+            resolve();
           });
-        } else {
-          console.error(`[${this.name}] Server error:`, e);
-        }
-      });
-    } catch (error) {
-      console.error(`[${this.name}] Failed to start server:`, error);
-    }
+        })
+        .catch(error => {
+          console.error(`[${this.name}] Could not find available port:`, error);
+          reject(error);
+        });
+    });
   },
 
-  loadInitialData: function() {
-    console.log(`[${this.name}] Loading initial data from ${this.storagePath}`);
-    
-    try {
-      // Load account files
-      const accountFiles = fs.readdirSync(this.storagePath)
-        .filter(file => file.endsWith('-accounts.json'));
-      
-      accountFiles.forEach(file => {
-        try {
-          const data = JSON.parse(fs.readFileSync(path.join(this.storagePath, file), "utf8"));
-          console.log(`[${this.name}] Loaded ${data.length} accounts from ${file}`);
-        } catch (err) {
-          console.error(`[${this.name}] Error reading ${file}:`, err);
+  findAvailablePort: function(startPort, endPort) {
+    return new Promise((resolve, reject) => {
+      const testPort = (port) => {
+        if (port > endPort) {
+          return reject(new Error(`No available ports between ${startPort}-${endPort}`));
         }
-      });
-      
-      // Check cache
-      if (fs.existsSync(path.join(this.cachePath, "projects.json"))) {
-        const stats = fs.statSync(path.join(this.cachePath, "projects.json"));
-        console.log(`[${this.name}] Found cached projects (last updated: ${stats.mtime})`);
-      }
-    } catch (e) {
-      console.error(`[${this.name}] Error loading initial data:`, e);
-    }
+
+        const tester = net.createServer()
+          .once('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+              testPort(port + 1);
+            } else {
+              reject(err);
+            }
+          })
+          .once('listening', () => {
+            tester.once('close', () => resolve(port)).close();
+          })
+          .listen(port);
+      };
+
+      testPort(startPort);
+    });
   },
 
   setupAPIRoutes: function() {
-    // Setup UI route
+    if (!this.expressApp) {
+      console.error(`[${this.name}] Cannot setup routes - express app not initialized`);
+      return;
+    }
+
+    // Health check endpoint
+    this.expressApp.get("/MMM-StylishTodoist/health", (req, res) => {
+      res.json({
+        status: "OK",
+        module: this.name,
+        serverPort: sharedServer?.port,
+        accounts: Object.keys(this.accounts).length,
+        instances: Object.keys(this.todoistInstances).length
+      });
+    });
+
+    // Setup UI
     this.expressApp.get("/MMM-StylishTodoist/setup", (req, res) => {
       res.sendFile(path.join(this.path, "public", "setup.html"));
     });
 
-    // Account management endpoints
-    this.setupAccountRoutes();
-    
-    // Project management endpoints
-    this.setupProjectRoutes();
-    
-    // Settings endpoints
-    this.setupSettingsRoutes();
-    
-    // Data endpoints
-    this.setupDataRoutes();
-  },
-
-  setupAccountRoutes: function() {
-    // Get accounts for instance
+    // Account API
     this.expressApp.get("/MMM-StylishTodoist/api/accounts/:instanceId", (req, res) => {
       this.handleGetAccounts(req, res);
     });
     
-    // Add new account
-    this.expressApp.post("/MMM-StylishTodoist/api/accounts/:instanceId", (req, res) => {
-      this.handleAddAccount(req, res);
-    });
-    
-    // Update account
-    this.expressApp.put("/MMM-StylishTodoist/api/accounts/:instanceId", (req, res) => {
-      this.handleUpdateAccount(req, res);
-    });
-    
-    // Delete account
-    this.expressApp.delete("/MMM-StylishTodoist/api/accounts/:instanceId/:token", (req, res) => {
-      this.handleDeleteAccount(req, res);
-    });
+    this.expressApp.post("/MMM-StylishTodoist/api/accounts/:instanceId", 
+      this.validateAccountData.bind(this),
+      this.handleAddAccount.bind(this)
+    );
+
+    this.expressApp.put("/MMM-StylishTodoist/api/accounts/:instanceId", 
+      this.validateAccountData.bind(this),
+      this.handleUpdateAccount.bind(this)
+    );
+
+    this.expressApp.delete("/MMM-StylishTodoist/api/accounts/:instanceId/:token", 
+      this.handleDeleteAccount.bind(this)
+    );
+
+    // Projects API
+    this.expressApp.get("/MMM-StylishTodoist/api/projects/:instanceId", 
+      this.handleGetProjects.bind(this)
+    );
+
+    this.expressApp.post("/MMM-StylishTodoist/api/projects/:instanceId", 
+      this.handleSaveProjects.bind(this)
+    );
+
+    // Settings API
+    this.expressApp.get("/MMM-StylishTodoist/api/settings/:instanceId", 
+      this.handleGetSettings.bind(this)
+    );
+
+    this.expressApp.post("/MMM-StylishTodoist/api/settings/:instanceId", 
+      this.handleSaveSettings.bind(this)
+    );
+
+    console.log(`[${this.name}] API routes initialized`);
   },
 
-  setupProjectRoutes: function() {
-    // Get available projects
-    this.expressApp.get("/MMM-StylishTodoist/api/projects/:instanceId", (req, res) => {
-      this.handleGetProjects(req, res);
-    });
-    
-    // Save project selection
-    this.expressApp.post("/MMM-StylishTodoist/api/projects/:instanceId", (req, res) => {
-      this.handleSaveProjects(req, res);
-    });
-    
-    // Get project limits
-    this.expressApp.get("/MMM-StylishTodoist/api/projects/:instanceId/limits", (req, res) => {
-      this.handleGetProjectLimits(req, res);
-    });
-  },
+  validateAccountData: function(req, res, next) {
+    if (!req.body.name || !req.body.token) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Account name and API token are required" 
+      });
+    }
 
-  setupSettingsRoutes: function() {
-    // Get settings
-    this.expressApp.get("/MMM-StylishTodoist/api/settings/:instanceId", (req, res) => {
-      this.handleGetSettings(req, res);
-    });
-    
-    // Save settings
-    this.expressApp.post("/MMM-StylishTodoist/api/settings/:instanceId", (req, res) => {
-      this.handleSaveSettings(req, res);
-    });
-    
-    // Get display settings
-    this.expressApp.get("/MMM-StylishTodoist/api/display/:instanceId", (req, res) => {
-      this.handleGetDisplaySettings(req, res);
-    });
-  },
+    // Basic token format validation
+    if (!/^[a-zA-Z0-9]{40}$/.test(req.body.token)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid API token format" 
+      });
+    }
 
-  setupDataRoutes: function() {
-    // Refresh data
-    this.expressApp.post("/MMM-StylishTodoist/api/refresh/:instanceId", (req, res) => {
-      this.handleRefreshData(req, res);
-    });
-    
-    // Export data
-    this.expressApp.get("/MMM-StylishTodoist/api/export/:instanceId", (req, res) => {
-      this.handleExportData(req, res);
-    });
-    
-    // Import data
-    this.expressApp.post("/MMM-StylishTodoist/api/import/:instanceId", (req, res) => {
-      this.handleImportData(req, res);
-    });
+    next();
   },
 
   /* Account Handlers */
@@ -205,136 +214,169 @@ module.exports = NodeHelper.create({
         accounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
       }
       
-      // Add avatar information if available
-      accounts = accounts.map(account => ({
+      // Add additional account info
+      const enrichedAccounts = accounts.map(account => ({
         ...account,
-        hasAvatar: this.checkAvatarCache(account.token)
+        hasAvatar: this.checkAvatarCache(account.token),
+        lastSynced: this.accounts[account.token]?.lastFetched || null
       }));
       
-      res.json({ success: true, accounts });
+      res.json({ 
+        success: true, 
+        data: enrichedAccounts 
+      });
     } catch (error) {
       console.error(`[${this.name}] Error loading accounts:`, error);
-      res.status(500).json({ success: false, error: "Failed to load accounts" });
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to load accounts",
+        details: error.message 
+      });
     }
   },
 
-  handleAddAccount: function(req, res) {
+  handleAddAccount: async function(req, res) {
     const instanceId = req.params.instanceId;
-    const accountConfig = req.body;
-    
-    if (!accountConfig.name || !accountConfig.token) {
-      return res.status(400).json({ success: false, error: "Missing required fields" });
-    }
-    
-    const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
+    const accountData = req.body;
     
     try {
+      // Verify Todoist API connection
+      const isValid = await this.testTodoistConnection(accountData.token);
+      if (!isValid) {
+        throw new Error("Failed to connect to Todoist API with provided token");
+      }
+
+      const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
       let accounts = [];
+      
       if (fs.existsSync(accountConfigPath)) {
         accounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
       }
       
       // Check for duplicate
-      if (accounts.some(acc => acc.token === accountConfig.token)) {
-        return res.status(409).json({ success: false, error: "Account already exists" });
+      if (accounts.some(acc => acc.token === accountData.token)) {
+        throw new Error("Account with this token already exists");
       }
       
       // Add new account
-      accounts.push(accountConfig);
+      accounts.push(accountData);
       fs.writeFileSync(accountConfigPath, JSON.stringify(accounts, null, 2));
       
-      // Fetch avatar immediately
-      this.fetchUserAvatar(accountConfig.token);
+      // Initialize account data
+      this.initializeAccount(accountData);
       
-      // Update all instances
-      this.updateAllInstances(instanceId, { accounts });
+      // Fetch avatar
+      await this.fetchUserAvatar(accountData.token);
       
-      res.json({ success: true });
+      res.json({ 
+        success: true,
+        message: "Account added successfully"
+      });
     } catch (error) {
-      console.error(`[${this.name}] Error saving account:`, error);
-      res.status(500).json({ success: false, error: "Failed to save account" });
+      console.error(`[${this.name}] Error adding account:`, error);
+      res.status(400).json({ 
+        success: false, 
+        error: error.message || "Failed to add account" 
+      });
     }
   },
 
-  handleUpdateAccount: function(req, res) {
+  handleUpdateAccount: async function(req, res) {
     const instanceId = req.params.instanceId;
     const updatedAccount = req.body;
     
-    if (!updatedAccount.name || !updatedAccount.token) {
-      return res.status(400).json({ success: false, error: "Missing required fields" });
-    }
-    
-    const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
-    
     try {
+      const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
       if (!fs.existsSync(accountConfigPath)) {
-        return res.status(404).json({ success: false, error: "No accounts found" });
+        throw new Error("No accounts found for this instance");
       }
       
       let accounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
       const index = accounts.findIndex(acc => acc.token === updatedAccount.token);
       
       if (index === -1) {
-        return res.status(404).json({ success: false, error: "Account not found" });
+        throw new Error("Account not found");
+      }
+      
+      // Verify Todoist API connection if token changed
+      if (accounts[index].token !== updatedAccount.token) {
+        const isValid = await this.testTodoistConnection(updatedAccount.token);
+        if (!isValid) {
+          throw new Error("Failed to verify new Todoist API token");
+        }
       }
       
       // Update account
       accounts[index] = updatedAccount;
       fs.writeFileSync(accountConfigPath, JSON.stringify(accounts, null, 2));
       
-      // Update avatar if changed
-      this.fetchUserAvatar(updatedAccount.token);
+      // Update in memory
+      if (this.accounts[updatedAccount.token]) {
+        this.accounts[updatedAccount.token] = {
+          ...this.accounts[updatedAccount.token],
+          name: updatedAccount.name,
+          category: updatedAccount.category,
+          color: updatedAccount.color
+        };
+      }
       
-      // Update all instances
-      this.updateAllInstances(instanceId, { accounts });
-      
-      res.json({ success: true });
+      res.json({ 
+        success: true,
+        message: "Account updated successfully"
+      });
     } catch (error) {
       console.error(`[${this.name}] Error updating account:`, error);
-      res.status(500).json({ success: false, error: "Failed to update account" });
+      res.status(400).json({ 
+        success: false, 
+        error: error.message || "Failed to update account" 
+      });
     }
   },
 
   handleDeleteAccount: function(req, res) {
     const instanceId = req.params.instanceId;
     const token = decodeURIComponent(req.params.token);
-    const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
     
     try {
+      const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
       if (!fs.existsSync(accountConfigPath)) {
-        return res.status(404).json({ success: false, error: "No accounts found" });
+        throw new Error("No accounts found for this instance");
       }
       
       let accounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
-      const newAccounts = accounts.filter(acc => acc.token !== token);
+      const initialCount = accounts.length;
       
-      if (newAccounts.length === accounts.length) {
-        return res.status(404).json({ success: false, error: "Account not found" });
+      // Filter out the account to delete
+      accounts = accounts.filter(acc => acc.token !== token);
+      
+      if (accounts.length === initialCount) {
+        throw new Error("Account not found");
       }
       
-      fs.writeFileSync(accountConfigPath, JSON.stringify(newAccounts, null, 2));
+      fs.writeFileSync(accountConfigPath, JSON.stringify(accounts, null, 2));
       
-      // Remove cached avatar
+      // Clean up
+      if (this.accounts[token]) {
+        delete this.accounts[token];
+      }
       this.removeAvatarCache(token);
       
-      // Update all instances
-      this.updateAllInstances(instanceId, { accounts: newAccounts });
-      
-      res.json({ success: true });
+      res.json({ 
+        success: true,
+        message: "Account deleted successfully"
+      });
     } catch (error) {
       console.error(`[${this.name}] Error deleting account:`, error);
-      res.status(500).json({ success: false, error: "Failed to delete account" });
+      res.status(400).json({ 
+        success: false, 
+        error: error.message || "Failed to delete account" 
+      });
     }
   },
 
   /* Project Handlers */
   handleGetProjects: function(req, res) {
     const instanceId = req.params.instanceId;
-    const instance = this.todoistInstances[instanceId];
-    
-    if (!instance) {
-      return res.status(404).json({ success: false, error: "Instance not found" });
-    }
     
     try {
       const projectsPath = path.join(this.cachePath, "projects.json");
@@ -343,15 +385,29 @@ module.exports = NodeHelper.create({
       if (fs.existsSync(projectsPath)) {
         projects = JSON.parse(fs.readFileSync(projectsPath, "utf8"));
       } else {
-        // Fetch projects if not cached
-        projects = this.fetchAllProjects(instance.config.accounts);
-        fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2));
+        // If no cached projects, fetch from active accounts
+        const instance = this.todoistInstances[instanceId];
+        if (instance && instance.config.accounts) {
+          projects = this.fetchAllProjects(instance.config.accounts)
+            .then(projects => {
+              fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2));
+              return projects;
+            })
+            .catch(() => []);
+        }
       }
       
-      res.json({ success: true, projects });
+      res.json({ 
+        success: true, 
+        data: projects 
+      });
     } catch (error) {
       console.error(`[${this.name}] Error getting projects:`, error);
-      res.status(500).json({ success: false, error: "Failed to get projects" });
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to get projects",
+        details: error.message 
+      });
     }
   },
 
@@ -359,9 +415,8 @@ module.exports = NodeHelper.create({
     const instanceId = req.params.instanceId;
     const { selectedProjects, projectLimits } = req.body;
     
-    const projectsConfigPath = path.join(this.storagePath, `${instanceId}-projects.json`);
-    
     try {
+      const projectsConfigPath = path.join(this.storagePath, `${instanceId}-projects.json`);
       const config = {
         selectedProjects: selectedProjects || [],
         projectLimits: projectLimits || {}
@@ -369,7 +424,7 @@ module.exports = NodeHelper.create({
       
       fs.writeFileSync(projectsConfigPath, JSON.stringify(config, null, 2));
       
-      // Update instance
+      // Update instance config if exists
       if (this.todoistInstances[instanceId]) {
         this.todoistInstances[instanceId].config = {
           ...this.todoistInstances[instanceId].config,
@@ -377,64 +432,67 @@ module.exports = NodeHelper.create({
         };
       }
       
-      res.json({ success: true });
+      res.json({ 
+        success: true,
+        message: "Project settings saved"
+      });
     } catch (error) {
       console.error(`[${this.name}] Error saving projects:`, error);
-      res.status(500).json({ success: false, error: "Failed to save projects" });
-    }
-  },
-
-  handleGetProjectLimits: function(req, res) {
-    const instanceId = req.params.instanceId;
-    const projectsConfigPath = path.join(this.storagePath, `${instanceId}-projects.json`);
-    
-    try {
-      if (fs.existsSync(projectsConfigPath)) {
-        const config = JSON.parse(fs.readFileSync(projectsConfigPath, "utf8"));
-        res.json({ success: true, projectLimits: config.projectLimits || {} });
-      } else {
-        res.json({ success: true, projectLimits: {} });
-      }
-    } catch (error) {
-      console.error(`[${this.name}] Error getting project limits:`, error);
-      res.status(500).json({ success: false, error: "Failed to get project limits" });
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to save project settings",
+        details: error.message 
+      });
     }
   },
 
   /* Settings Handlers */
   handleGetSettings: function(req, res) {
     const instanceId = req.params.instanceId;
-    const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
     
     try {
+      const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
+      let settings = {};
+      
       if (fs.existsSync(settingsPath)) {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-        res.json({ success: true, settings });
+        settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
       } else {
         // Default settings
-        const defaultSettings = {
+        settings = {
           maximumEntries: 10,
           updateInterval: 600,
           showAvatars: true,
-          showDividers: true
+          showDividers: true,
+          showCompleted: false,
+          showOverdue: true,
+          groupBy: "project",
+          themeColor: "#E84C3D"
         };
-        res.json({ success: true, settings: defaultSettings });
       }
+      
+      res.json({ 
+        success: true, 
+        data: settings 
+      });
     } catch (error) {
       console.error(`[${this.name}] Error loading settings:`, error);
-      res.status(500).json({ success: false, error: "Failed to load settings" });
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to load settings",
+        details: error.message 
+      });
     }
   },
 
   handleSaveSettings: function(req, res) {
     const instanceId = req.params.instanceId;
     const settings = req.body;
-    const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
     
     try {
+      const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
       
-      // Update instance
+      // Update instance config if exists
       if (this.todoistInstances[instanceId]) {
         this.todoistInstances[instanceId].config = {
           ...this.todoistInstances[instanceId].config,
@@ -442,109 +500,27 @@ module.exports = NodeHelper.create({
         };
       }
       
-      res.json({ success: true });
+      res.json({ 
+        success: true,
+        message: "Settings saved successfully"
+      });
     } catch (error) {
       console.error(`[${this.name}] Error saving settings:`, error);
-      res.status(500).json({ success: false, error: "Failed to save settings" });
-    }
-  },
-
-  handleGetDisplaySettings: function(req, res) {
-    const instanceId = req.params.instanceId;
-    const displayPath = path.join(this.storagePath, `${instanceId}-display.json`);
-    
-    try {
-      if (fs.existsSync(displayPath)) {
-        const display = JSON.parse(fs.readFileSync(displayPath, "utf8"));
-        res.json({ success: true, display });
-      } else {
-        // Default display settings
-        const defaultDisplay = {
-          themeColor: "#E84C3D",
-          dateFormat: "DD.MM.YYYY",
-          groupBy: "project",
-          dueTasksLimit: 5
-        };
-        res.json({ success: true, display: defaultDisplay });
-      }
-    } catch (error) {
-      console.error(`[${this.name}] Error loading display settings:`, error);
-      res.status(500).json({ success: false, error: "Failed to load display settings" });
-    }
-  },
-
-  /* Data Handlers */
-  handleRefreshData: function(req, res) {
-    const instanceId = req.params.instanceId;
-    
-    try {
-      this.getTodoistTasks(instanceId, this.todoistInstances[instanceId]?.config || {});
-      res.json({ success: true, message: "Refresh initiated" });
-    } catch (error) {
-      console.error(`[${this.name}] Error refreshing data:`, error);
-      res.status(500).json({ success: false, error: "Failed to refresh data" });
-    }
-  },
-
-  handleExportData: function(req, res) {
-    const instanceId = req.params.instanceId;
-    
-    try {
-      const accountsPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
-      const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
-      const projectsPath = path.join(this.storagePath, `${instanceId}-projects.json`);
-      
-      const exportData = {
-        accounts: fs.existsSync(accountsPath) ? JSON.parse(fs.readFileSync(accountsPath, "utf8")) : [],
-        settings: fs.existsSync(settingsPath) ? JSON.parse(fs.readFileSync(settingsPath, "utf8")) : {},
-        projects: fs.existsSync(projectsPath) ? JSON.parse(fs.readFileSync(projectsPath, "utf8")) : {}
-      };
-      
-      res.json({ success: true, data: exportData });
-    } catch (error) {
-      console.error(`[${this.name}] Error exporting data:`, error);
-      res.status(500).json({ success: false, error: "Failed to export data" });
-    }
-  },
-
-  handleImportData: function(req, res) {
-    const instanceId = req.params.instanceId;
-    const { accounts, settings, projects } = req.body;
-    
-    try {
-      if (accounts) {
-        const accountsPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
-        fs.writeFileSync(accountsPath, JSON.stringify(accounts, null, 2));
-      }
-      
-      if (settings) {
-        const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
-        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-      }
-      
-      if (projects) {
-        const projectsPath = path.join(this.storagePath, `${instanceId}-projects.json`);
-        fs.writeFileSync(projectsPath, JSON.stringify(projects, null, 2));
-      }
-      
-      // Update instance
-      if (this.todoistInstances[instanceId]) {
-        this.todoistInstances[instanceId].config = {
-          ...this.todoistInstances[instanceId].config,
-          ...settings,
-          ...projects
-        };
-      }
-      
-      res.json({ success: true });
-    } catch (error) {
-      console.error(`[${this.name}] Error importing data:`, error);
-      res.status(500).json({ success: false, error: "Failed to import data" });
+      res.status(500).json({ 
+        success: false, 
+        error: "Failed to save settings",
+        details: error.message 
+      });
     }
   },
 
   /* Core Functions */
   socketNotificationReceived: function(notification, payload) {
+    if (!this.isInitialized) {
+      console.warn(`[${this.name}] Received notification before initialization: ${notification}`);
+      return;
+    }
+
     switch (notification) {
       case "INIT_TODOIST":
         this.initTodoist(payload.instanceId, payload.config);
@@ -555,112 +531,95 @@ module.exports = NodeHelper.create({
         break;
         
       case "REFRESH_TASKS":
-        this.getTodoistTasks(payload.instanceId, this.todoistInstances[payload.instanceId]?.config || {});
+        this.refreshTasks(payload.instanceId);
         break;
+        
+      default:
+        console.warn(`[${this.name}] Unknown notification: ${notification}`);
     }
   },
 
   initTodoist: function(instanceId, config) {
-    console.log(`[${this.name}] Initializing Todoist for instance ${instanceId}`);
+    console.log(`[${this.name}] Initializing instance ${instanceId}`);
     
     this.todoistInstances[instanceId] = {
       config: config,
       lastUpdated: null
     };
     
-    // Load accounts from storage
-    this.loadAccountsFromStorage(instanceId);
+    // Load data from storage
+    this.loadFromStorage(instanceId);
     
-    // Load settings from storage
-    this.loadSettingsFromStorage(instanceId);
-    
-    // Load projects configuration
-    this.loadProjectsFromStorage(instanceId);
+    console.log(`[${this.name}] Instance ${instanceId} initialized`);
   },
 
-  loadAccountsFromStorage: function(instanceId) {
-    const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
-    const instance = this.todoistInstances[instanceId];
-    
-    if (!instance) return;
-    
-    try {
-      if (fs.existsSync(accountConfigPath)) {
-        const savedAccounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
-        if (savedAccounts && savedAccounts.length > 0) {
-          instance.config.accounts = savedAccounts;
-          console.log(`[${this.name}] Loaded ${savedAccounts.length} accounts for ${instanceId}`);
-        }
-      } else {
-        fs.writeFileSync(accountConfigPath, JSON.stringify([], null, 2));
-      }
-    } catch (error) {
-      console.error(`[${this.name}] Error loading accounts:`, error);
-    }
-  },
+  loadFromStorage: function(instanceId) {
+    if (!this.todoistInstances[instanceId]) return;
 
-  loadSettingsFromStorage: function(instanceId) {
-    const settingsPath = path.join(this.storagePath, `${instanceId}-settings.json`);
-    const instance = this.todoistInstances[instanceId];
-    
-    if (!instance) return;
-    
-    try {
-      if (fs.existsSync(settingsPath)) {
-        const savedSettings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-        if (savedSettings) {
-          instance.config = { ...instance.config, ...savedSettings };
-        }
+    const loaders = [
+      { 
+        file: `${instanceId}-accounts.json`, 
+        key: 'accounts',
+        required: false
+      },
+      { 
+        file: `${instanceId}-settings.json`, 
+        key: 'config',
+        required: false
+      },
+      { 
+        file: `${instanceId}-projects.json`, 
+        key: 'config',
+        required: false
       }
-    } catch (error) {
-      console.error(`[${this.name}] Error loading settings:`, error);
-    }
-  },
+    ];
 
-  loadProjectsFromStorage: function(instanceId) {
-    const projectsPath = path.join(this.storagePath, `${instanceId}-projects.json`);
-    const instance = this.todoistInstances[instanceId];
-    
-    if (!instance) return;
-    
-    try {
-      if (fs.existsSync(projectsPath)) {
-        const savedProjects = JSON.parse(fs.readFileSync(projectsPath, "utf8"));
-        if (savedProjects) {
-          instance.config = { 
-            ...instance.config,
-            selectedProjects: savedProjects.selectedProjects || [],
-            projectLimits: savedProjects.projectLimits || {}
-          };
+    loaders.forEach(loader => {
+      const filePath = path.join(this.storagePath, loader.file);
+      try {
+        if (fs.existsSync(filePath)) {
+          const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
+          
+          if (loader.key === 'config') {
+            this.todoistInstances[instanceId].config = {
+              ...this.todoistInstances[instanceId].config,
+              ...data
+            };
+          } else {
+            this.todoistInstances[instanceId][loader.key] = data;
+          }
         }
+      } catch (error) {
+        console.error(`[${this.name}] Error loading ${loader.file}:`, error);
       }
-    } catch (error) {
-      console.error(`[${this.name}] Error loading projects config:`, error);
-    }
+    });
   },
 
   getTodoistTasks: function(instanceId, config) {
-    const instance = this.todoistInstances[instanceId];
-    if (!instance) {
-      console.error(`[${this.name}] Instance ${instanceId} not found`);
+    if (!this.todoistInstances[instanceId]) {
+      console.error(`[${this.name}] Instance ${instanceId} not initialized`);
       return;
     }
-    
+
     // Update config from storage
-    this.loadAccountsFromStorage(instanceId);
-    this.loadSettingsFromStorage(instanceId);
-    this.loadProjectsFromStorage(instanceId);
+    this.loadFromStorage(instanceId);
+    
+    const instance = this.todoistInstances[instanceId];
     
     if (!instance.config.accounts || instance.config.accounts.length === 0) {
-      console.error(`[${this.name}] No accounts configured for ${instanceId}`);
-      this.sendSocketNotification("TODOIST_TASKS", { instanceId, tasks: [] });
+      console.warn(`[${this.name}] No accounts configured for ${instanceId}`);
+      this.sendSocketNotification("TODOIST_TASKS", { 
+        instanceId, 
+        tasks: [],
+        error: "No accounts configured"
+      });
       return;
     }
     
     console.log(`[${this.name}] Fetching tasks for ${instanceId}`);
     
-    const promises = instance.config.accounts.map(accountConfig => {
-      const account = this.initializeAccount(accountConfig, instance.config);
+    const fetchPromises = instance.config.accounts.map(accountConfig => {
+      const account = this.initializeAccount(accountConfig);
       
       return this.fetchAccountData(account)
         .then(({ tasks, projects }) => {
@@ -671,11 +630,11 @@ module.exports = NodeHelper.create({
         })
         .catch(error => {
           console.error(`[${this.name}] Error fetching data for ${account.name}:`, error);
-          return account.tasks || [];
+          return account.tasks || []; // Return cached tasks if available
         });
     });
     
-    Promise.all(promises)
+    Promise.all(fetchPromises)
       .then(results => {
         const allTasks = [].concat(...results);
         const processedTasks = this.processTasks(allTasks, instance.config);
@@ -691,27 +650,39 @@ module.exports = NodeHelper.create({
         
         // Cache projects
         this.cacheProjects(instance.config.accounts);
+        
+        // Cache tasks for offline use
+        this.cacheTasks(instanceId, processedTasks);
       })
       .catch(error => {
         console.error(`[${this.name}] Error processing tasks:`, error);
-        this.sendSocketNotification("TODOIST_ERROR", { instanceId, error: error.message });
+        this.sendSocketNotification("TODOIST_ERROR", { 
+          instanceId, 
+          error: error.message 
+        });
       });
   },
 
-  initializeAccount: function(accountConfig, moduleConfig) {
+  refreshTasks: function(instanceId) {
+    if (!this.todoistInstances[instanceId]) {
+      console.error(`[${this.name}] Cannot refresh - instance ${instanceId} not found`);
+      return;
+    }
+    
+    this.getTodoistTasks(instanceId, this.todoistInstances[instanceId].config);
+  },
+
+  initializeAccount: function(accountConfig) {
     if (!this.accounts[accountConfig.token]) {
       this.accounts[accountConfig.token] = {
         token: accountConfig.token,
         name: accountConfig.name || "Todoist",
         category: accountConfig.category || "default",
-        color: accountConfig.color || moduleConfig.themeColor || "#E84C3D",
+        color: accountConfig.color || "#E84C3D",
         tasks: [],
         projects: [],
         lastFetched: null
       };
-      
-      // Fetch avatar for new account
-      this.fetchUserAvatar(accountConfig.token);
     }
     
     return this.accounts[accountConfig.token];
@@ -728,10 +699,15 @@ module.exports = NodeHelper.create({
 
   fetchProjects: function(account) {
     return fetch("https://api.todoist.com/rest/v2/projects", {
-      headers: { Authorization: `Bearer ${account.token}` }
+      headers: { 
+        Authorization: `Bearer ${account.token}`,
+        "Cache-Control": "no-cache"
+      }
     })
     .then(response => {
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       return response.json();
     })
     .then(projects => {
@@ -743,11 +719,17 @@ module.exports = NodeHelper.create({
   fetchTasks: function(account) {
     return Promise.all([
       fetch("https://api.todoist.com/rest/v2/tasks", {
-        headers: { Authorization: `Bearer ${account.token}` }
+        headers: { 
+          Authorization: `Bearer ${account.token}`,
+          "Cache-Control": "no-cache"
+        }
       }).then(res => res.ok ? res.json() : []),
       
       fetch("https://api.todoist.com/rest/v2/user", {
-        headers: { Authorization: `Bearer ${account.token}` }
+        headers: { 
+          Authorization: `Bearer ${account.token}`,
+          "Cache-Control": "no-cache"
+        }
       }).then(res => res.ok ? res.json() : null)
     ])
     .then(([tasks, userInfo]) => {
@@ -776,20 +758,32 @@ module.exports = NodeHelper.create({
     // Filter completed tasks if needed
     let filteredTasks = config.showCompleted ? tasks : tasks.filter(task => !task.completed);
     
+    // Handle overdue tasks based on config
+    if (!config.showOverdue) {
+      const now = moment();
+      filteredTasks = filteredTasks.filter(task => 
+        !task.due || moment(task.due.date).isSameOrAfter(now)
+      );
+    }
+    
     // Separate tasks with due dates
     const dueTasks = filteredTasks.filter(task => task.due);
     const noDueTasks = filteredTasks.filter(task => !task.due);
     
-    // Sort due tasks by date
+    // Sort due tasks by date (earlier first)
     dueTasks.sort((a, b) => moment(a.due.date).diff(moment(b.due.date)));
     
-    // Apply project grouping if configured
-    if (config.groupBy === "project") {
-      return this.groupTasksByProject(dueTasks, noDueTasks, config);
+    // Apply grouping based on config
+    switch (config.groupBy) {
+      case "project":
+        return this.groupTasksByProject(dueTasks, noDueTasks, config);
+        
+      case "date":
+        return this.groupTasksByDate(dueTasks, noDueTasks, config);
+        
+      default:
+        return [...dueTasks, ...noDueTasks].slice(0, config.maximumEntries);
     }
-    
-    // Default: return all tasks sorted
-    return [...dueTasks, ...noDueTasks].slice(0, config.maximumEntries);
   },
 
   groupTasksByProject: function(dueTasks, noDueTasks, config) {
@@ -798,50 +792,106 @@ module.exports = NodeHelper.create({
     
     // Process due tasks first
     dueTasks.forEach(task => {
-      if (!projectGroups[task.project_id]) {
-        projectGroups[task.project_id] = {
-          projectId: task.project_id,
+      const projectId = task.project_id || "no_project";
+      if (!projectGroups[projectId]) {
+        projectGroups[projectId] = {
+          projectId,
           projectName: task.projectName,
           projectColor: task.projectColor,
           tasks: []
         };
       }
       
-      if (projectGroups[task.project_id].tasks.length < (config.projectLimits[task.project_id] || config.maximumEntries)) {
-        projectGroups[task.project_id].tasks.push(task);
+      if (projectGroups[projectId].tasks.length < (config.projectLimits?.[projectId] || config.maximumEntries)) {
+        projectGroups[projectId].tasks.push(task);
       }
     });
     
     // Process tasks without due dates
     noDueTasks.forEach(task => {
-      if (!projectGroups[task.project_id]) {
-        projectGroups[task.project_id] = {
-          projectId: task.project_id,
+      const projectId = task.project_id || "no_project";
+      if (!projectGroups[projectId]) {
+        projectGroups[projectId] = {
+          projectId,
           projectName: task.projectName,
           projectColor: task.projectColor,
           tasks: []
         };
       }
       
-      if (projectGroups[task.project_id].tasks.length < (config.projectLimits[task.project_id] || config.maximumEntries)) {
-        projectGroups[task.project_id].tasks.push(task);
+      if (projectGroups[projectId].tasks.length < (config.projectLimits?.[projectId] || config.maximumEntries)) {
+        projectGroups[projectId].tasks.push(task);
       }
     });
     
-    // Convert to array and apply project selection
+    // Apply project selection if specified
+    const selectedProjects = config.selectedProjects || [];
+    const shouldFilterProjects = selectedProjects.length > 0;
+    
+    // Convert to array
     Object.values(projectGroups).forEach(group => {
-      if (config.selectedProjects.length === 0 || config.selectedProjects.includes(group.projectId)) {
-        result.push({
-          isProjectHeader: true,
-          ...group
-        });
-        result.push(...group.tasks);
+      if (!shouldFilterProjects || selectedProjects.includes(group.projectId)) {
+        if (config.showDividers) {
+          result.push({
+            isProjectHeader: true,
+            ...group
+          });
+        }
+        result.push(...group.tasks.slice(0, config.maximumEntries));
       }
     });
     
     return result.slice(0, config.maximumEntries);
   },
 
+  groupTasksByDate: function(dueTasks, noDueTasks, config) {
+    const dateGroups = {};
+    const result = [];
+    
+    // Group by due date
+    dueTasks.forEach(task => {
+      const dateKey = moment(task.due.date).format("YYYY-MM-DD");
+      if (!dateGroups[dateKey]) {
+        dateGroups[dateKey] = {
+          date: task.due.date,
+          tasks: []
+        };
+      }
+      dateGroups[dateKey].tasks.push(task);
+    });
+    
+    // Sort date groups
+    const sortedDateGroups = Object.values(dateGroups)
+      .sort((a, b) => moment(a.date).diff(moment(b.date)));
+    
+    // Add to result with date headers
+    sortedDateGroups.forEach(group => {
+      if (config.showDividers) {
+        result.push({
+          isDateHeader: true,
+          date: group.date,
+          formattedDate: moment(group.date).format(config.dateFormat || "DD.MM.YYYY")
+        });
+      }
+      result.push(...group.tasks);
+    });
+    
+    // Add tasks without due dates at the end
+    if (noDueTasks.length > 0) {
+      if (config.showDividers) {
+        result.push({
+          isDateHeader: true,
+          date: null,
+          formattedDate: "No due date"
+        });
+      }
+      result.push(...noDueTasks);
+    }
+    
+    return result.slice(0, config.maximumEntries);
+  },
+
+  /* Cache Management */
   cacheProjects: function(accounts) {
     const allProjects = [];
     
@@ -864,14 +914,25 @@ module.exports = NodeHelper.create({
     }
   },
 
+  cacheTasks: function(instanceId, tasks) {
+    try {
+      fs.writeFileSync(
+        path.join(this.cachePath, `${instanceId}-tasks.json`),
+        JSON.stringify(tasks, null, 2)
+      );
+    } catch (error) {
+      console.error(`[${this.name}] Error caching tasks:`, error);
+    }
+  },
+
   /* Avatar Handling */
   fetchUserAvatar: function(token) {
     const avatarPath = path.join(this.cachePath, `avatar_${token.substring(0, 8)}.jpg`);
     
     // Skip if already cached
-    if (fs.existsSync(avatarPath)) return;
+    if (fs.existsSync(avatarPath)) return Promise.resolve();
     
-    fetch("https://api.todoist.com/rest/v2/user", {
+    return fetch("https://api.todoist.com/rest/v2/user", {
       headers: { Authorization: `Bearer ${token}` }
     })
     .then(res => res.ok ? res.json() : null)
@@ -881,7 +942,7 @@ module.exports = NodeHelper.create({
           .then(res => res.buffer())
           .then(buffer => {
             fs.writeFileSync(avatarPath, buffer);
-            console.log(`[${this.name}] Cached avatar for token ${token.substring(0, 5)}...`);
+            console.log(`[${this.name}] Cached avatar for ${token.substring(0, 5)}...`);
           });
       }
     })
@@ -903,19 +964,22 @@ module.exports = NodeHelper.create({
   },
 
   /* Helper Functions */
-  updateAllInstances: function(instanceId, data) {
-    Object.keys(this.todoistInstances).forEach(id => {
-      if (id === instanceId || id.includes('todoist')) {
-        this.todoistInstances[id].config = {
-          ...this.todoistInstances[id].config,
-          ...data
-        };
+  testTodoistConnection: function(token) {
+    return fetch("https://api.todoist.com/rest/v2/projects", {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`API returned status ${response.status}`);
       }
-    });
-    
-    this.sendSocketNotification("TODOIST_UPDATED", {
-      instanceId,
-      ...data
+      return response.json();
+    })
+    .then(projects => {
+      return Array.isArray(projects);
+    })
+    .catch(error => {
+      console.error(`[${this.name}] Todoist connection test failed:`, error);
+      return false;
     });
   },
 
@@ -927,5 +991,32 @@ module.exports = NodeHelper.create({
           .catch(() => [])
       )
     ).then(results => [].concat(...results));
+  },
+
+  loadInitialData: function() {
+    console.log(`[${this.name}] Loading initial data from ${this.storagePath}`);
+    
+    try {
+      // Load account files
+      const accountFiles = fs.readdirSync(this.storagePath)
+        .filter(file => file.endsWith('-accounts.json'));
+      
+      accountFiles.forEach(file => {
+        try {
+          const data = JSON.parse(fs.readFileSync(path.join(this.storagePath, file), "utf8"));
+          console.log(`[${this.name}] Loaded ${data.length} accounts from ${file}`);
+        } catch (err) {
+          console.error(`[${this.name}] Error reading ${file}:`, err);
+        }
+      });
+      
+      // Check cache
+      if (fs.existsSync(path.join(this.cachePath, "projects.json"))) {
+        const stats = fs.statSync(path.join(this.cachePath, "projects.json"));
+        console.log(`[${this.name}] Found cached projects (last updated: ${stats.mtime})`);
+      }
+    } catch (e) {
+      console.error(`[${this.name}] Error loading initial data:`, e);
+    }
   }
 });

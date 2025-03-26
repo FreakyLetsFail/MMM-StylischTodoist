@@ -17,6 +17,9 @@
       --border: #e0e0e0;
       --card-bg: #ffffff;
       --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      --success: #28a745;
+      --error: #dc3545;
+      --warning: #ffc107;
     }
 
     * {
@@ -71,6 +74,7 @@
     .tabs {
       display: flex;
       background: var(--primary-dark);
+      position: relative;
     }
 
     .tab {
@@ -82,6 +86,7 @@
       font-weight: 500;
       position: relative;
       flex: 1;
+      z-index: 1;
     }
 
     .tab:hover {
@@ -90,18 +95,17 @@
     }
 
     .tab.active {
-      background: var(--primary);
       color: white;
     }
 
-    .tab.active::after {
-      content: "";
+    .tab-indicator {
       position: absolute;
-      bottom: -1px;
+      bottom: 0;
       left: 0;
-      right: 0;
       height: 3px;
       background: white;
+      transition: all 0.3s ease;
+      z-index: 0;
     }
 
     .tab-badge {
@@ -115,6 +119,12 @@
     .tab-content {
       display: none;
       padding: 25px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .tab-content.active {
@@ -160,7 +170,7 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 16px;
-      transition: border 0.3s;
+      transition: all 0.3s;
     }
 
     input[type="text"]:focus,
@@ -188,6 +198,11 @@
       right: 15px;
       transform: translateY(-50%);
       color: var(--text-light);
+      cursor: pointer;
+    }
+
+    .input-with-icon i:hover {
+      color: var(--primary);
     }
 
     button {
@@ -207,6 +222,11 @@
 
     button:hover {
       background-color: var(--primary-dark);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
     }
 
     button i {
@@ -224,11 +244,25 @@
     }
 
     button.danger {
-      background-color: #e74c3c;
+      background-color: var(--error);
     }
 
     button.danger:hover {
-      background-color: #c0392b;
+      background-color: #c82333;
+    }
+
+    button.success {
+      background-color: var(--success);
+    }
+
+    button.success:hover {
+      background-color: #218838;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
     }
 
     .button-group {
@@ -246,6 +280,7 @@
       margin: 15px 0;
       display: flex;
       align-items: center;
+      animation: fadeIn 0.3s ease;
     }
 
     .alert i {
@@ -271,12 +306,23 @@
       border: 1px solid #ffeeba;
     }
 
+    .alert.info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+    }
+
     .card {
       background: white;
       border-radius: 8px;
       box-shadow: var(--shadow);
       padding: 20px;
       margin-bottom: 20px;
+      transition: transform 0.3s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
     }
 
     .card-title {
@@ -285,6 +331,12 @@
       padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
       color: var(--primary);
+      display: flex;
+      align-items: center;
+    }
+
+    .card-title i {
+      margin-right: 10px;
     }
 
     .account-list {
@@ -299,11 +351,12 @@
       border-radius: 6px;
       margin-bottom: 10px;
       transition: all 0.3s;
+      background: white;
     }
 
     .account-item:hover {
       border-color: var(--primary);
-      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     }
 
     .account-icon {
@@ -331,6 +384,9 @@
     .account-meta {
       font-size: 0.9em;
       color: var(--text-light);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
     }
 
     .account-actions {
@@ -350,10 +406,12 @@
       border: 1px solid var(--border);
       border-radius: 4px;
       margin-bottom: 10px;
+      transition: all 0.2s;
     }
 
     .project-item:hover {
       border-color: var(--primary);
+      transform: translateX(3px);
     }
 
     .project-item input[type="checkbox"] {
@@ -382,6 +440,7 @@
       padding: 20px;
       border-radius: 8px;
       margin-top: 15px;
+      overflow: auto;
     }
 
     .color-preview {
@@ -392,6 +451,7 @@
       vertical-align: middle;
       margin-left: 10px;
       border: 1px solid var(--border);
+      transition: all 0.3s;
     }
 
     .icon-preview {
@@ -407,7 +467,6 @@
       font-size: 0.8em;
       background: var(--light-bg);
       color: var(--text-light);
-      margin-right: 5px;
     }
 
     .hidden {
@@ -427,6 +486,33 @@
 
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+
+    .tooltip .tooltip-text {
+      visibility: hidden;
+      width: 200px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
     }
 
     /* Responsive adjustments */
@@ -456,6 +542,17 @@
       .tab-content {
         padding: 15px;
       }
+
+      .account-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .account-actions {
+        margin-top: 10px;
+        width: 100%;
+        justify-content: flex-end;
+      }
     }
   </style>
 </head>
@@ -483,26 +580,32 @@
       <div class="tab" data-tab="advanced">
         <i class="fas fa-cog"></i> Advanced
       </div>
+      <div class="tab-indicator" id="tab-indicator"></div>
     </div>
     
     <!-- Accounts Tab -->
     <div class="tab-content active" id="accounts">
       <div class="card">
-        <h2 class="card-title">Add New Account</h2>
+        <h2 class="card-title"><i class="fas fa-user-plus"></i> Add New Account</h2>
         <div class="alert hidden" id="account-alert"></div>
         
         <div class="form-group">
           <label for="account-name">Account Name</label>
-          <input type="text" id="account-name" placeholder="e.g. Personal, Work">
+          <input type="text" id="account-name" placeholder="e.g. Personal, Work" required>
         </div>
         
         <div class="form-group">
           <label for="api-token">Todoist API Token</label>
           <div class="input-with-icon">
-            <input type="password" id="api-token" placeholder="Find in Todoist Settings → Integrations">
-            <i class="fas fa-key"></i>
+            <input type="password" id="api-token" placeholder="Find in Todoist Settings → Integrations" required>
+            <i class="fas fa-eye" id="toggle-token-visibility"></i>
           </div>
-          <small><a href="https://todoist.com/app/settings/integrations" target="_blank">Where to find my API token?</a></small>
+          <small>
+            <a href="https://todoist.com/app/settings/integrations" target="_blank" class="tooltip">
+              Where to find my API token?
+              <span class="tooltip-text">Go to Todoist Settings → Integrations → API token</span>
+            </a>
+          </small>
         </div>
         
         <div class="form-row">
@@ -544,14 +647,22 @@
           </div>
         </div>
         
-        <button id="add-account" style="margin-top: 15px;">
-          <i class="fas fa-plus-circle"></i> Add Account
-        </button>
+        <div class="form-group">
+          <button id="test-connection" class="secondary" style="margin-right: 10px;">
+            <i class="fas fa-plug"></i> Test Connection
+          </button>
+          <button id="add-account" class="success">
+            <i class="fas fa-plus-circle"></i> Add Account
+          </button>
+        </div>
       </div>
       
       <div class="card">
-        <h2 class="card-title">Your Accounts</h2>
+        <h2 class="card-title"><i class="fas fa-users"></i> Your Accounts</h2>
         <div class="alert hidden" id="accounts-list-alert"></div>
+        <div class="alert info hidden" id="loading-accounts">
+          <i class="fas fa-spinner fa-spin"></i> Loading accounts...
+        </div>
         <ul class="account-list" id="accounts-list">
           <li class="account-empty">No accounts added yet</li>
         </ul>
@@ -561,14 +672,20 @@
     <!-- Projects Tab -->
     <div class="tab-content" id="projects">
       <div class="card">
-        <h2 class="card-title">Project Selection</h2>
+        <h2 class="card-title"><i class="fas fa-project-diagram"></i> Project Selection</h2>
         <p>Select which projects to display and set task limits for each</p>
         
         <div class="alert hidden" id="projects-alert"></div>
+        <div class="alert info hidden" id="loading-projects">
+          <i class="fas fa-spinner fa-spin"></i> Loading projects...
+        </div>
         
         <div class="form-group">
           <label for="project-filter">Filter Projects</label>
-          <input type="text" id="project-filter" placeholder="Search projects...">
+          <div class="input-with-icon">
+            <input type="text" id="project-filter" placeholder="Search projects...">
+            <i class="fas fa-search"></i>
+          </div>
         </div>
         
         <div id="project-selector" class="project-selector">
@@ -591,7 +708,7 @@
     <!-- Display Tab -->
     <div class="tab-content" id="display">
       <div class="card">
-        <h2 class="card-title">Display Settings</h2>
+        <h2 class="card-title"><i class="fas fa-sliders-h"></i> Display Settings</h2>
         
         <div class="alert hidden" id="display-alert"></div>
         
@@ -604,26 +721,30 @@
             <label for="theme-color">Theme Color</label>
             <div style="display: flex; align-items: center;">
               <input type="color" id="theme-color" value="#E84C3D">
-              <span class="color-preview" style="background-color: #E84C3D;"></span>
+              <span class="color-preview" id="theme-color-preview" style="background-color: #E84C3D;"></span>
             </div>
           </div>
         </div>
         
         <div class="form-group">
           <label>Display Options</label>
-          <div>
-            <label class="inline">
-              <input type="checkbox" id="show-avatars" checked> Show Avatars
-            </label>
-            <label class="inline">
-              <input type="checkbox" id="show-priority" checked> Show Priority
-            </label>
-            <label class="inline">
-              <input type="checkbox" id="show-dividers" checked> Show Dividers
-            </label>
-            <label class="inline">
-              <input type="checkbox" id="show-project-headers" checked> Show Project Headers
-            </label>
+          <div class="form-row">
+            <div class="form-col">
+              <label class="inline">
+                <input type="checkbox" id="show-avatars" checked> Show Avatars
+              </label>
+              <label class="inline">
+                <input type="checkbox" id="show-priority" checked> Show Priority
+              </label>
+            </div>
+            <div class="form-col">
+              <label class="inline">
+                <input type="checkbox" id="show-dividers" checked> Show Dividers
+              </label>
+              <label class="inline">
+                <input type="checkbox" id="show-project-headers" checked> Show Project Headers
+              </label>
+            </div>
           </div>
         </div>
         
@@ -647,13 +768,13 @@
           </select>
         </div>
         
-        <button id="save-display">
+        <button id="save-display" class="success">
           <i class="fas fa-save"></i> Save Display Settings
         </button>
       </div>
       
       <div class="preview-section">
-        <h2 class="card-title">Live Preview</h2>
+        <h2 class="card-title"><i class="fas fa-eye"></i> Live Preview</h2>
         <p>See how your changes will look on the mirror</p>
         <div class="preview-container" id="live-preview">
           <!-- Preview will be rendered here -->
@@ -664,7 +785,7 @@
     <!-- Advanced Tab -->
     <div class="tab-content" id="advanced">
       <div class="card">
-        <h2 class="card-title">Advanced Settings</h2>
+        <h2 class="card-title"><i class="fas fa-cogs"></i> Advanced Settings</h2>
         
         <div class="alert hidden" id="advanced-alert"></div>
         
@@ -691,13 +812,13 @@
           <input type="number" id="maximum-entries" min="1" max="200" value="30">
         </div>
         
-        <button id="save-advanced">
+        <button id="save-advanced" class="success">
           <i class="fas fa-save"></i> Save Advanced Settings
         </button>
       </div>
       
       <div class="card">
-        <h2 class="card-title">Module Management</h2>
+        <h2 class="card-title"><i class="fas fa-tools"></i> Module Management</h2>
         
         <div class="form-group">
           <label>Cache Management</label>
@@ -735,15 +856,46 @@
   </div>
 
   <script>
+    // Global state
+    const state = {
+      accounts: [],
+      projects: [],
+      settings: {},
+      currentTab: 'accounts'
+    };
+
     document.addEventListener('DOMContentLoaded', function() {
-      // Tab switching
+      // Initialize tab indicator
+      const tabIndicator = document.getElementById('tab-indicator');
+      const activeTab = document.querySelector('.tab.active');
+      if (activeTab) {
+        tabIndicator.style.width = `${activeTab.offsetWidth}px`;
+        tabIndicator.style.left = `${activeTab.offsetLeft}px`;
+      }
+
+      // Tab switching with animation
       document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', function() {
+          const tabName = this.dataset.tab;
+          if (state.currentTab === tabName) return;
+          
+          state.currentTab = tabName;
+          
+          // Update active tab
           document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
           document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
           
           this.classList.add('active');
-          document.getElementById(this.dataset.tab).classList.add('active');
+          document.getElementById(tabName).classList.add('active');
+          
+          // Animate tab indicator
+          tabIndicator.style.width = `${this.offsetWidth}px`;
+          tabIndicator.style.left = `${this.offsetLeft}px`;
+          
+          // Load data for the tab if needed
+          if (tabName === 'projects' && state.projects.length === 0) {
+            loadProjects();
+          }
         });
       });
       
@@ -753,10 +905,30 @@
           this.value === 'custom' ? 'block' : 'none';
       });
       
-      // Color preview
+      // Color previews
       document.getElementById('account-color').addEventListener('input', function() {
         document.getElementById('color-preview').style.backgroundColor = this.value;
       });
+      
+      document.getElementById('theme-color').addEventListener('input', function() {
+        document.getElementById('theme-color-preview').style.backgroundColor = this.value;
+        updatePreview();
+      });
+      
+      // Toggle token visibility
+      document.getElementById('toggle-token-visibility').addEventListener('click', function() {
+        const tokenInput = document.getElementById('api-token');
+        if (tokenInput.type === 'password') {
+          tokenInput.type = 'text';
+          this.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+          tokenInput.type = 'password';
+          this.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+      });
+      
+      // Test connection button
+      document.getElementById('test-connection').addEventListener('click', testConnection);
       
       // Load initial data
       loadAccounts();
@@ -769,45 +941,73 @@
       document.getElementById('save-projects').addEventListener('click', saveProjectSettings);
       document.getElementById('save-display').addEventListener('click', saveDisplaySettings);
       document.getElementById('save-advanced').addEventListener('click', saveAdvancedSettings);
+      document.getElementById('clear-cache').addEventListener('click', clearCache);
+      document.getElementById('refresh-data').addEventListener('click', refreshData);
+      document.getElementById('export-config').addEventListener('click', exportConfig);
+      document.getElementById('import-config').addEventListener('click', importConfig);
+      document.getElementById('reset-settings').addEventListener('click', resetSettings);
       
       // Live preview updates
-      document.querySelectorAll('#display input, #display select, #display input[type="checkbox"]').forEach(el => {
+      const previewElements = [
+        ...document.querySelectorAll('#display input'),
+        ...document.querySelectorAll('#display select'),
+        ...document.querySelectorAll('#display input[type="checkbox"]')
+      ];
+      
+      previewElements.forEach(el => {
         el.addEventListener('change', updatePreview);
       });
     });
     
-    function showAlert(elementId, message, type) {
+    function showAlert(elementId, message, type = 'info', duration = 5000) {
       const alert = document.getElementById(elementId);
-      alert.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${message}`;
+      const iconMap = {
+        success: 'check-circle',
+        error: 'exclamation-circle',
+        warning: 'exclamation-triangle',
+        info: 'info-circle'
+      };
+      
+      alert.innerHTML = `<i class="fas fa-${iconMap[type] || 'info-circle'}"></i> ${message}`;
       alert.className = `alert ${type}`;
       alert.style.display = 'flex';
-      setTimeout(() => alert.className = 'alert hidden', 5000);
+      
+      if (duration > 0) {
+        setTimeout(() => {
+          alert.className = 'alert hidden';
+        }, duration);
+      }
     }
     
-    function loadAccounts() {
-      // In a real implementation, this would fetch from your backend
-      console.log("Loading accounts...");
-      // Mock data for demonstration
-      const mockAccounts = [
-        {
-          id: '1',
-          name: 'Personal',
-          token: '********',
-          category: 'personal',
-          icon: 'user',
-          color: '#E84C3D'
-        },
-        {
-          id: '2',
-          name: 'Work',
-          token: '********',
-          category: 'work',
-          icon: 'briefcase',
-          color: '#3498db'
-        }
-      ];
+    function showLoading(elementId, show) {
+      const element = document.getElementById(elementId);
+      if (show) {
+        element.classList.remove('hidden');
+      } else {
+        element.classList.add('hidden');
+      }
+    }
+    
+    async function loadAccounts() {
+      showLoading('loading-accounts', true);
       
-      updateAccountsList(mockAccounts);
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/accounts/default');
+        if (!response.ok) throw new Error('Failed to load accounts');
+        
+        const data = await response.json();
+        if (data.success) {
+          state.accounts = data.data || [];
+          updateAccountsList(state.accounts);
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (error) {
+        showAlert('accounts-list-alert', `Error loading accounts: ${error.message}`, 'error');
+        console.error('Error loading accounts:', error);
+      } finally {
+        showLoading('loading-accounts', false);
+      }
     }
     
     function updateAccountsList(accounts) {
@@ -826,21 +1026,21 @@
         item.className = 'account-item';
         item.innerHTML = `
           <div class="account-icon" style="background-color: ${account.color}">
-            <i class="fas fa-${account.icon}"></i>
+            <i class="fas fa-${account.icon || 'user'}"></i>
           </div>
           <div class="account-details">
             <div class="account-name">${account.name}</div>
             <div class="account-meta">
               <span class="category-tag">${account.category}</span>
-              Last synced: ${new Date().toLocaleDateString()}
+              ${account.lastSynced ? `Last synced: ${new Date(account.lastSynced).toLocaleString()}` : 'Not synced yet'}
             </div>
           </div>
           <div class="account-actions">
-            <button class="secondary" onclick="editAccount('${account.id}')">
-              <i class="fas fa-edit"></i>
+            <button class="secondary" onclick="editAccount('${account.token}')">
+              <i class="fas fa-edit"></i> Edit
             </button>
-            <button class="danger" onclick="deleteAccount('${account.id}')">
-              <i class="fas fa-trash-alt"></i>
+            <button class="danger" onclick="deleteAccount('${account.token}')">
+              <i class="fas fa-trash-alt"></i> Delete
             </button>
           </div>
         `;
@@ -850,11 +1050,46 @@
       count.textContent = accounts.length;
     }
     
-    function addAccount() {
-      const name = document.getElementById('account-name').value;
+    async function testConnection() {
       const token = document.getElementById('api-token').value;
+      if (!token) {
+        showAlert('account-alert', 'Please enter an API token first', 'error');
+        return;
+      }
+      
+      const testBtn = document.getElementById('test-connection');
+      testBtn.disabled = true;
+      testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/test-connection', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('account-alert', 'Connection successful! Token is valid', 'success');
+        } else {
+          throw new Error(data.error || 'Connection failed');
+        }
+      } catch (error) {
+        showAlert('account-alert', `Connection failed: ${error.message}`, 'error');
+        console.error('Connection test failed:', error);
+      } finally {
+        testBtn.disabled = false;
+        testBtn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
+      }
+    }
+    
+    async function addAccount() {
+      const name = document.getElementById('account-name').value.trim();
+      const token = document.getElementById('api-token').value.trim();
       const category = document.getElementById('account-category').value;
-      const customCategory = document.getElementById('custom-category').value;
+      const customCategory = document.getElementById('custom-category').value.trim();
       const icon = document.getElementById('account-icon').value;
       const color = document.getElementById('account-color').value;
       
@@ -863,51 +1098,552 @@
         return;
       }
       
-      // In a real implementation, this would save to your backend
-      console.log("Adding account:", { name, token, category, icon, color });
-      showAlert('account-alert', 'Account added successfully!', 'success');
+      const finalCategory = category === 'custom' ? customCategory : category;
+      if (category === 'custom' && !finalCategory) {
+        showAlert('account-alert', 'Please enter a custom category name', 'error');
+        return;
+      }
       
-      // Reset form
-      document.getElementById('account-name').value = '';
-      document.getElementById('api-token').value = '';
+      const accountData = {
+        name,
+        token,
+        category: finalCategory,
+        icon,
+        color
+      };
       
-      // Reload accounts
-      loadAccounts();
-    }
-    
-    function editAccount(id) {
-      console.log("Editing account:", id);
-      // Implementation would fetch account details and populate form
-    }
-    
-    function deleteAccount(id) {
-      if (confirm("Are you sure you want to delete this account?")) {
-        console.log("Deleting account:", id);
-        // Implementation would remove from backend
-        showAlert('accounts-list-alert', 'Account deleted successfully', 'success');
-        loadAccounts();
+      const addBtn = document.getElementById('add-account');
+      addBtn.disabled = true;
+      addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/accounts/default', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(accountData)
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('account-alert', 'Account added successfully!', 'success');
+          // Reset form
+          document.getElementById('account-name').value = '';
+          document.getElementById('api-token').value = '';
+          document.getElementById('custom-category').value = '';
+          document.getElementById('account-category').value = 'default';
+          document.getElementById('custom-category-container').style.display = 'none';
+          
+          // Reload accounts
+          await loadAccounts();
+        } else {
+          throw new Error(data.error || 'Failed to add account');
+        }
+      } catch (error) {
+        showAlert('account-alert', `Error adding account: ${error.message}`, 'error');
+        console.error('Error adding account:', error);
+      } finally {
+        addBtn.disabled = false;
+        addBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Account';
       }
     }
     
-    function loadDisplaySettings() {
-      // In a real implementation, this would fetch from your backend
-      console.log("Loading display settings...");
+    async function editAccount(token) {
+      // Find the account in state
+      const account = state.accounts.find(acc => acc.token === token);
+      if (!account) {
+        showAlert('accounts-list-alert', 'Account not found', 'error');
+        return;
+      }
+      
+      // Populate form
+      document.getElementById('account-name').value = account.name;
+      document.getElementById('api-token').value = account.token;
+      
+      if (['work', 'personal', 'family', 'default'].includes(account.category)) {
+        document.getElementById('account-category').value = account.category;
+        document.getElementById('custom-category-container').style.display = 'none';
+      } else {
+        document.getElementById('account-category').value = 'custom';
+        document.getElementById('custom-category').value = account.category;
+        document.getElementById('custom-category-container').style.display = 'block';
+      }
+      
+      document.getElementById('account-icon').value = account.icon || 'tasks';
+      document.getElementById('account-color').value = account.color || '#E84C3D';
+      document.getElementById('color-preview').style.backgroundColor = account.color || '#E84C3D';
+      
+      // Scroll to form
+      document.getElementById('account-name').focus();
+      document.querySelector('.tab-content.active').scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+      
+      showAlert('account-alert', `Editing account: ${account.name}`, 'info', 0);
     }
     
-    function saveDisplaySettings() {
-      // In a real implementation, this would save to your backend
-      showAlert('display-alert', 'Display settings saved!', 'success');
-      updatePreview();
+    async function deleteAccount(token) {
+      if (!confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/MMM-StylishTodoist/api/accounts/default/${encodeURIComponent(token)}`, {
+          method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('accounts-list-alert', 'Account deleted successfully', 'success');
+          await loadAccounts();
+        } else {
+          throw new Error(data.error || 'Failed to delete account');
+        }
+      } catch (error) {
+        showAlert('accounts-list-alert', `Error deleting account: ${error.message}`, 'error');
+        console.error('Error deleting account:', error);
+      }
     }
     
-    function loadAdvancedSettings() {
-      // In a real implementation, this would fetch from your backend
-      console.log("Loading advanced settings...");
+    async function loadProjects() {
+      showLoading('loading-projects', true);
+      document.getElementById('project-selector').classList.add('hidden');
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/projects/default');
+        if (!response.ok) throw new Error('Failed to load projects');
+        
+        const data = await response.json();
+        if (data.success) {
+          state.projects = data.data || [];
+          updateProjectList(state.projects);
+          document.getElementById('save-projects').classList.remove('hidden');
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (error) {
+        showAlert('projects-alert', `Error loading projects: ${error.message}`, 'error');
+        console.error('Error loading projects:', error);
+      } finally {
+        showLoading('loading-projects', false);
+      }
     }
     
-    function saveAdvancedSettings() {
-      // In a real implementation, this would save to your backend
-      showAlert('advanced-alert', 'Advanced settings saved!', 'success');
+    function updateProjectList(projects) {
+      const container = document.getElementById('project-selector');
+      container.innerHTML = '';
+      
+      if (projects.length === 0) {
+        container.innerHTML = `
+          <div class="alert info">
+            <i class="fas fa-info-circle"></i> No projects found in your Todoist account
+          </div>
+        `;
+        return;
+      }
+      
+      const filterInput = document.getElementById('project-filter').value.toLowerCase();
+      
+      projects.forEach(project => {
+        if (filterInput && !project.name.toLowerCase().includes(filterInput)) {
+          return;
+        }
+        
+        const projectItem = document.createElement('div');
+        projectItem.className = 'project-item';
+        projectItem.innerHTML = `
+          <input type="checkbox" id="project-${project.id}" ${state.settings.selectedProjects?.includes(project.id) ? 'checked' : ''}>
+          <label for="project-${project.id}">${project.name}</label>
+          <input type="number" id="limit-${project.id}" min="1" max="20" 
+                 value="${state.settings.projectLimits?.[project.id] || document.getElementById('default-project-limit').value || 5}">
+        `;
+        container.appendChild(projectItem);
+      });
+      
+      container.classList.remove('hidden');
+    }
+    
+    async function saveProjectSettings() {
+      const projects = state.projects;
+      const selectedProjects = [];
+      const projectLimits = {};
+      const defaultLimit = parseInt(document.getElementById('default-project-limit').value) || 5;
+      
+      projects.forEach(project => {
+        const checkbox = document.getElementById(`project-${project.id}`);
+        if (checkbox?.checked) {
+          selectedProjects.push(project.id);
+          
+          const limitInput = document.getElementById(`limit-${project.id}`);
+          const limit = limitInput ? parseInt(limitInput.value) : defaultLimit;
+          projectLimits[project.id] = limit;
+        }
+      });
+      
+      const saveBtn = document.getElementById('save-projects');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/projects/default', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            selectedProjects,
+            projectLimits
+          })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('projects-alert', 'Project settings saved successfully!', 'success');
+          state.settings.selectedProjects = selectedProjects;
+          state.settings.projectLimits = projectLimits;
+        } else {
+          throw new Error(data.error || 'Failed to save project settings');
+        }
+      } catch (error) {
+        showAlert('projects-alert', `Error saving project settings: ${error.message}`, 'error');
+        console.error('Error saving project settings:', error);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Project Settings';
+      }
+    }
+    
+    async function loadDisplaySettings() {
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/display/default');
+        if (!response.ok) throw new Error('Failed to load display settings');
+        
+        const data = await response.json();
+        if (data.success) {
+          state.settings = { ...state.settings, ...data.data };
+          applyDisplaySettings(data.data);
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error loading display settings:', error);
+      }
+    }
+    
+    function applyDisplaySettings(settings) {
+      if (!settings) return;
+      
+      if (settings.dueTasksLimit) {
+        document.getElementById('due-tasks-limit').value = settings.dueTasksLimit;
+      }
+      
+      if (settings.themeColor) {
+        document.getElementById('theme-color').value = settings.themeColor;
+        document.getElementById('theme-color-preview').style.backgroundColor = settings.themeColor;
+      }
+      
+      if (settings.showAvatars !== undefined) {
+        document.getElementById('show-avatars').checked = settings.showAvatars;
+      }
+      
+      if (settings.showPriority !== undefined) {
+        document.getElementById('show-priority').checked = settings.showPriority;
+      }
+      
+      if (settings.showDividers !== undefined) {
+        document.getElementById('show-dividers').checked = settings.showDividers;
+      }
+      
+      if (settings.showProjectHeaders !== undefined) {
+        document.getElementById('show-project-headers').checked = settings.showProjectHeaders;
+      }
+      
+      if (settings.dateFormat) {
+        document.getElementById('date-format').value = settings.dateFormat;
+      }
+      
+      if (settings.groupBy) {
+        document.getElementById('group-by').value = settings.groupBy;
+      }
+    }
+    
+    async function saveDisplaySettings() {
+      const settings = {
+        dueTasksLimit: parseInt(document.getElementById('due-tasks-limit').value) || 5,
+        themeColor: document.getElementById('theme-color').value,
+        showAvatars: document.getElementById('show-avatars').checked,
+        showPriority: document.getElementById('show-priority').checked,
+        showDividers: document.getElementById('show-dividers').checked,
+        showProjectHeaders: document.getElementById('show-project-headers').checked,
+        dateFormat: document.getElementById('date-format').value,
+        groupBy: document.getElementById('group-by').value
+      };
+      
+      const saveBtn = document.getElementById('save-display');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/settings/default', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('display-alert', 'Display settings saved successfully!', 'success');
+          state.settings = { ...state.settings, ...settings };
+          updatePreview();
+        } else {
+          throw new Error(data.error || 'Failed to save display settings');
+        }
+      } catch (error) {
+        showAlert('display-alert', `Error saving display settings: ${error.message}`, 'error');
+        console.error('Error saving display settings:', error);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Display Settings';
+      }
+    }
+    
+    async function loadAdvancedSettings() {
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/settings/default');
+        if (!response.ok) throw new Error('Failed to load advanced settings');
+        
+        const data = await response.json();
+        if (data.success) {
+          if (data.settings.updateInterval) {
+            document.getElementById('update-interval').value = data.settings.updateInterval;
+          }
+          
+          if (data.settings.apiVersion) {
+            document.getElementById('api-version').value = data.settings.apiVersion;
+          }
+          
+          if (data.settings.fadeSpeed) {
+            document.getElementById('fade-speed').value = data.settings.fadeSpeed;
+          }
+          
+          if (data.settings.maximumEntries) {
+            document.getElementById('maximum-entries').value = data.settings.maximumEntries;
+          }
+        } else {
+          throw new Error(data.error || 'Unknown error');
+        }
+      } catch (error) {
+        console.error('Error loading advanced settings:', error);
+      }
+    }
+    
+    async function saveAdvancedSettings() {
+      const settings = {
+        updateInterval: parseInt(document.getElementById('update-interval').value) || 10,
+        apiVersion: document.getElementById('api-version').value,
+        fadeSpeed: parseInt(document.getElementById('fade-speed').value) || 3000,
+        maximumEntries: parseInt(document.getElementById('maximum-entries').value) || 30
+      };
+      
+      const saveBtn = document.getElementById('save-advanced');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/settings/default', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(settings)
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('advanced-alert', 'Advanced settings saved successfully!', 'success');
+          state.settings = { ...state.settings, ...settings };
+        } else {
+          throw new Error(data.error || 'Failed to save advanced settings');
+        }
+      } catch (error) {
+        showAlert('advanced-alert', `Error saving advanced settings: ${error.message}`, 'error');
+        console.error('Error saving advanced settings:', error);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Advanced Settings';
+      }
+    }
+    
+    async function clearCache() {
+      if (!confirm('Are you sure you want to clear the cache? This will force a fresh data load on next refresh.')) {
+        return;
+      }
+      
+      const clearBtn = document.getElementById('clear-cache');
+      clearBtn.disabled = true;
+      clearBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/clear-cache', {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('advanced-alert', 'Cache cleared successfully!', 'success');
+        } else {
+          throw new Error(data.error || 'Failed to clear cache');
+        }
+      } catch (error) {
+        showAlert('advanced-alert', `Error clearing cache: ${error.message}`, 'error');
+        console.error('Error clearing cache:', error);
+      } finally {
+        clearBtn.disabled = false;
+        clearBtn.innerHTML = '<i class="fas fa-trash-alt"></i> Clear Cache';
+      }
+    }
+    
+    async function refreshData() {
+      const refreshBtn = document.getElementById('refresh-data');
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/refresh/default', {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('advanced-alert', 'Data refresh initiated!', 'success');
+        } else {
+          throw new Error(data.error || 'Failed to refresh data');
+        }
+      } catch (error) {
+        showAlert('advanced-alert', `Error refreshing data: ${error.message}`, 'error');
+        console.error('Error refreshing data:', error);
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Now';
+      }
+    }
+    
+    async function exportConfig() {
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/export/default');
+        if (!response.ok) throw new Error('Failed to export config');
+        
+        const data = await response.json();
+        if (data.success) {
+          // Create a download link
+          const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `MMM-StylishTodoist-config-${new Date().toISOString().split('T')[0]}.json`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          showAlert('advanced-alert', 'Configuration exported successfully!', 'success');
+        } else {
+          throw new Error(data.error || 'Failed to export config');
+        }
+      } catch (error) {
+        showAlert('advanced-alert', `Error exporting config: ${error.message}`, 'error');
+        console.error('Error exporting config:', error);
+      }
+    }
+    
+    async function importConfig() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      
+      input.onchange = async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const importBtn = document.getElementById('import-config');
+        importBtn.disabled = true;
+        importBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing...';
+        
+        try {
+          const fileContent = await file.text();
+          const config = JSON.parse(fileContent);
+          
+          const response = await fetch('/MMM-StylishTodoist/api/import/default', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: fileContent
+          });
+          
+          const data = await response.json();
+          if (data.success) {
+            showAlert('advanced-alert', 'Configuration imported successfully!', 'success');
+            // Reload all settings
+            await Promise.all([
+              loadAccounts(),
+              loadProjects(),
+              loadDisplaySettings(),
+              loadAdvancedSettings()
+            ]);
+          } else {
+            throw new Error(data.error || 'Failed to import config');
+          }
+        } catch (error) {
+          showAlert('advanced-alert', `Error importing config: ${error.message}`, 'error');
+          console.error('Error importing config:', error);
+        } finally {
+          importBtn.disabled = false;
+          importBtn.innerHTML = '<i class="fas fa-file-import"></i> Import Config';
+        }
+      };
+      
+      input.click();
+    }
+    
+    async function resetSettings() {
+      if (!confirm('Are you sure you want to reset all settings to defaults? This action cannot be undone.')) {
+        return;
+      }
+      
+      const resetBtn = document.getElementById('reset-settings');
+      resetBtn.disabled = true;
+      resetBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+      
+      try {
+        const response = await fetch('/MMM-StylishTodoist/api/reset/default', {
+          method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+          showAlert('advanced-alert', 'Settings reset to defaults!', 'success');
+          // Reload all settings
+          await Promise.all([
+            loadAccounts(),
+            loadProjects(),
+            loadDisplaySettings(),
+            loadAdvancedSettings()
+          ]);
+        } else {
+          throw new Error(data.error || 'Failed to reset settings');
+        }
+      } catch (error) {
+        showAlert('advanced-alert', `Error resetting settings: ${error.message}`, 'error');
+        console.error('Error resetting settings:', error);
+      } finally {
+        resetBtn.disabled = false;
+        resetBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Reset to Defaults';
+      }
     }
     
     function updatePreview() {
@@ -919,6 +1655,16 @@
       const showDividers = document.getElementById('show-dividers').checked;
       const showProjectHeaders = document.getElementById('show-project-headers').checked;
       const dateFormat = document.getElementById('date-format').value;
+      const groupBy = document.getElementById('group-by').value;
+      
+      // Generate sample tasks based on settings
+      const sampleTasks = generateSampleTasks(
+        dueLimit, 
+        themeColor, 
+        showAvatars, 
+        showPriority,
+        groupBy
+      );
       
       preview.innerHTML = `
         <div style="color: white; font-family: 'Roboto', sans-serif; max-width: 500px; margin: 0 auto;">
@@ -928,12 +1674,110 @@
               <span>Todoist Tasks</span>
             </div>
             <div style="font-size: 0.8em; color: rgba(255, 255, 255, 0.6);">
-              Updated: ${new Date().toLocaleTimeString()}
+              ${new Date().toLocaleTimeString()}
             </div>
           </div>
           
+          ${sampleTasks}
+        </div>
+      `;
+    }
+    
+    function generateSampleTasks(dueLimit, themeColor, showAvatars, showPriority, groupBy) {
+      const now = new Date();
+      const sampleTasks = [];
+      
+      // Generate due tasks
+      for (let i = 0; i < dueLimit; i++) {
+        const isOverdue = i === 0;
+        const isToday = i === 1;
+        const isTomorrow = i === 2;
+        
+        let dueDate;
+        let dueText;
+        
+        if (isOverdue) {
+          dueDate = new Date(now);
+          dueDate.setDate(dueDate.getDate() - 1);
+          dueText = 'Overdue';
+        } else if (isToday) {
+          dueDate = new Date(now);
+          dueText = 'Today';
+        } else if (isTomorrow) {
+          dueDate = new Date(now);
+          dueDate.setDate(dueDate.getDate() + 1);
+          dueText = 'Tomorrow';
+        } else {
+          dueDate = new Date(now);
+          dueDate.setDate(dueDate.getDate() + i);
+          dueText = dueDate.toLocaleDateString();
+        }
+        
+        sampleTasks.push(`
+          <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 6px; position: relative; ${isOverdue ? 'border-left: 3px solid #ff5252;' : ''}">
+            ${showAvatars ? `<img src="https://i.pravatar.cc/40?img=${i+1}" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid ${themeColor}; flex-shrink: 0; object-fit: cover;">` : ''}
+            <div style="flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px;">
+              ${showPriority && isOverdue ? `<div style="color: ${themeColor}; font-size: 0.9em; flex-shrink: 0;"><i class="fas fa-exclamation-circle"></i></div>` : ''}
+              <div style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95em;">
+                ${isOverdue ? 'Urgent task that needs attention' : `Task ${i+1} with due date`}
+              </div>
+              <div style="font-size: 0.8em; color: ${isOverdue ? '#ff5252' : 'rgba(255, 255, 255, 0.7)'}; flex-shrink: 0; padding-left: 10px; font-weight: ${isOverdue ? '500' : 'normal'}">
+                ${dueText}
+              </div>
+            </div>
+          </div>
+        `);
+      }
+      
+      // Generate project tasks if grouped by project
+      if (groupBy === 'project') {
+        const projectTasks = [];
+        
+        for (let i = 0; i < 2; i++) {
+          const projectName = i === 0 ? 'Work' : 'Personal';
+          const projectColor = i === 0 ? '#3498db' : '#2ecc71';
+          
+          let projectSection = '';
+          
+          if (showProjectHeaders) {
+            projectSection += `
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="font-weight: 500; font-size: 1.05em; color: ${projectColor}">${projectName}</div>
+                <div style="font-size: 0.85em; color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.1); padding: 2px 8px; border-radius: 10px;">3 tasks</div>
+              </div>
+            `;
+          }
+          
+          if (showDividers) {
+            projectSection += `
+              <div style="height: 1px; background: linear-gradient(to right, transparent, ${projectColor}, transparent); margin: 8px 0 12px; opacity: 0.3;"></div>
+            `;
+          }
+          
+          projectSection += `
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              ${Array.from({length: 3}, (_, j) => `
+                <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 6px;">
+                  ${showAvatars ? `<img src="https://i.pravatar.cc/40?img=${i*3 + j + 4}" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid ${projectColor}; flex-shrink: 0; object-fit: cover;">` : ''}
+                  <div style="flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px;">
+                    <div style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95em;">
+                      ${projectName} task ${j+1}
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+          
+          projectTasks.push(`
+            <div style="margin-top: 20px;">
+              ${projectSection}
+            </div>
+          `);
+        }
+        
+        return `
           <div style="display: flex; flex-direction: column; gap: 20px;">
-            <!-- Due Tasks Section -->
             <div style="background: rgba(255, 255, 255, 0.03); border-radius: 8px; padding: 12px;">
               <div style="font-size: 1.1em; font-weight: 500; margin-bottom: 12px; color: ${themeColor}; display: flex; align-items: center;">
                 <span style="display: inline-block; width: 4px; height: 16px; background: ${themeColor}; margin-right: 8px; border-radius: 2px;"></span>
@@ -941,50 +1785,19 @@
               </div>
               
               <div style="display: flex; flex-direction: column; gap: 8px;">
-                ${Array.from({length: dueLimit}, (_, i) => `
-                  <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 6px; position: relative; ${i === 0 ? 'border-left: 3px solid #ff5252;' : ''}">
-                    ${showAvatars ? `<img src="https://i.pravatar.cc/40?img=${i+1}" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid ${themeColor}; flex-shrink: 0; object-fit: cover;">` : ''}
-                    <div style="flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px;">
-                      ${showPriority && i === 0 ? `<div style="color: ${themeColor}; font-size: 0.9em; flex-shrink: 0;"><i class="fas fa-exclamation-circle"></i></div>` : ''}
-                      <div style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95em;">
-                        ${i === 0 ? 'Urgent task that needs attention' : `Task ${i+1} with due date`}
-                      </div>
-                      <div style="font-size: 0.8em; color: ${i === 0 ? '#ff5252' : 'rgba(255, 255, 255, 0.7)'}; flex-shrink: 0; padding-left: 10px; font-weight: ${i === 0 ? '500' : 'normal'}">
-                        ${i === 0 ? 'Overdue' : (i === 1 ? 'Today' : (i === 2 ? 'Tomorrow' : new Date(Date.now() + (i * 86400000)).toLocaleDateString()))}
-                      </div>
-                    </div>
-                  </div>
-                `).join('')}
+                ${sampleTasks.join('')}
               </div>
             </div>
             
-            <!-- Projects Section -->
-            <div style="background: rgba(255, 255, 255, 0.05); border-radius: 8px; padding: 12px;">
-              ${showProjectHeaders ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                  <div style="font-weight: 500; font-size: 1.05em;">Work</div>
-                  <div style="font-size: 0.85em; color: rgba(255, 255, 255, 0.6); background: rgba(255, 255, 255, 0.1); padding: 2px 8px; border-radius: 10px;">3 tasks</div>
-                </div>
-              ` : ''}
-              
-              ${showDividers ? `
-                <div style="height: 1px; background: linear-gradient(to right, transparent, ${themeColor}, transparent); margin: 8px 0 12px; opacity: 0.3;"></div>
-              ` : ''}
-              
-              <div style="display: flex; flex-direction: column; gap: 8px;">
-                ${Array.from({length: 3}, (_, i) => `
-                  <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 6px;">
-                    ${showAvatars ? `<img src="https://i.pravatar.cc/40?img=${i+4}" style="width: 28px; height: 28px; border-radius: 50%; border: 2px solid ${themeColor}; flex-shrink: 0; object-fit: cover;">` : ''}
-                    <div style="flex-grow: 1; min-width: 0; display: flex; align-items: center; gap: 8px;">
-                      <div style="flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.95em;">
-                        Work task ${i+1}
-                      </div>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
+            ${projectTasks.join('')}
           </div>
+        `;
+      }
+      
+      // Default list view
+      return `
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          ${sampleTasks.join('')}
         </div>
       `;
     }
