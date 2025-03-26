@@ -205,10 +205,20 @@ module.exports = NodeHelper.create({
       return;
     }
 
-    // Always accept 'default' as a valid instance ID
+    // Get a list of all active module instances
+    const getActiveInstances = () => {
+      return Object.keys(this.todoistInstances).sort();
+    };
+
+    // Always accept 'default' as a valid instance ID and handle module_* instances
     const handleInstanceParam = (req, res, next) => {
+      let instanceId = req.params.instanceId;
+      
+      // Create a map of active instances for easier access in the setup UI
+      res.locals.activeInstances = getActiveInstances();
+      
       // If the instance doesn't exist but 'default' is requested, create it
-      if (req.params.instanceId === 'default' && !this.todoistInstances['default']) {
+      if (instanceId === 'default' && !this.todoistInstances['default']) {
         console.log(`[${this.name}] Creating default instance for API request`);
         this.todoistInstances['default'] = {
           config: {
@@ -218,6 +228,17 @@ module.exports = NodeHelper.create({
           lastUpdated: null
         };
       }
+      
+      // Make settings work for all instances by using first active instance if needed
+      if (!this.todoistInstances[instanceId]) {
+        const activeInstances = getActiveInstances();
+        if (activeInstances.length > 0) {
+          const firstInstance = activeInstances[0];
+          console.log(`[${this.name}] Requested instance ${instanceId} not found, using active instance ${firstInstance} instead`);
+          req.params.instanceId = firstInstance;
+        }
+      }
+      
       next();
     };
 
@@ -350,10 +371,27 @@ module.exports = NodeHelper.create({
       }
     });
 
-    // Setup UI
+    // Setup UI with active instance information
     this.expressApp.get("/MMM-StylishTodoist/setup", (req, res) => {
       console.log(`[${this.name}] Setup page requested from ${req.ip}`);
-      res.sendFile(path.join(this.path, "public", "setup.html"));
+      
+      // Inject active instances as query parameters
+      const activeInstances = Object.keys(this.todoistInstances);
+      if (activeInstances.length > 0) {
+        console.log(`[${this.name}] Active instances: ${activeInstances.join(', ')}`);
+        let setupHtml = fs.readFileSync(path.join(this.path, "public", "setup.html"), 'utf8');
+        
+        // Simple string replacement to inject the first active instance
+        // This is a basic approach; a more robust solution would use a template engine
+        setupHtml = setupHtml.replace(
+          'var defaultInstance = "default";', 
+          `var defaultInstance = "${activeInstances[0]}";`
+        );
+        
+        res.send(setupHtml);
+      } else {
+        res.sendFile(path.join(this.path, "public", "setup.html"));
+      }
     });
 
     // Refresh API
@@ -1018,7 +1056,7 @@ module.exports = NodeHelper.create({
   },
 
   getConfiguredAccounts: function(instanceId) {
-    // First try to get accounts from storage
+    // First try instance-specific accounts
     const accountConfigPath = path.join(this.storagePath, `${instanceId}-accounts.json`);
     if (fs.existsSync(accountConfigPath)) {
       try {
@@ -1029,6 +1067,20 @@ module.exports = NodeHelper.create({
         }
       } catch (error) {
         console.error(`[${this.name}] Error reading accounts file:`, error);
+      }
+    }
+    
+    // Then try default accounts if instance-specific not found
+    const defaultAccountPath = path.join(this.storagePath, `default-accounts.json`);
+    if (fs.existsSync(defaultAccountPath)) {
+      try {
+        const accounts = JSON.parse(fs.readFileSync(defaultAccountPath, "utf8"));
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          console.log(`[${this.name}] Using ${accounts.length} accounts from default-accounts.json for ${instanceId}`);
+          return accounts;
+        }
+      } catch (error) {
+        console.error(`[${this.name}] Error reading default accounts file:`, error);
       }
     }
     
@@ -1054,7 +1106,7 @@ module.exports = NodeHelper.create({
       }
     }
     
-    console.log(`[${this.name}] No accounts found for ${instanceId} in storage or config`);
+    console.log(`[${this.name}] No accounts found for ${instanceId} in any location`);
     return [];
   },
 
