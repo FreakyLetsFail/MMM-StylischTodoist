@@ -1207,6 +1207,16 @@ module.exports = NodeHelper.create({
       // Get projects if they're stored in the account object
       const projects = account.projects || [];
       
+      // Use a default avatar placeholder if the user has no avatar
+      const avatarUrl = userInfo?.avatar_url || "https://ui-avatars.com/api/?name=" + encodeURIComponent(account.name) + "&background=random";
+      
+      // Try to fetch the avatar and cache it
+      if (avatarUrl && !avatarUrl.startsWith("data:")) {
+        this.fetchUserAvatar(account.token, avatarUrl).catch(err => {
+          console.log(`[${this.name}] Could not cache avatar: ${err.message}`);
+        });
+      }
+      
       return tasks.map(task => {
         const project = projects.find(p => p.id === task.project_id) || {
           name: "Inbox",
@@ -1219,8 +1229,8 @@ module.exports = NodeHelper.create({
           accountColor: account.color,
           projectName: project.name,
           projectColor: project.color,
-          avatar: userInfo?.avatar_url,
-          responsible: userInfo?.name || "You"
+          avatar: avatarUrl,
+          responsible: userInfo?.name || account.name || "You"
         };
       });
     })
@@ -1410,12 +1420,49 @@ module.exports = NodeHelper.create({
   },
 
   /* Avatar Handling */
-  fetchUserAvatar: function(token) {
+  fetchUserAvatar: function(token, avatarUrl) {
+    if (!avatarUrl) {
+      return Promise.resolve();
+    }
+    
     const avatarPath = path.join(this.cachePath, `avatar_${token.substring(0, 8)}.jpg`);
     
     // Skip if already cached
-    if (fs.existsSync(avatarPath)) return Promise.resolve();
+    if (fs.existsSync(avatarPath)) {
+      // Check if cache is recent (less than 1 day old)
+      const stats = fs.statSync(avatarPath);
+      const now = new Date();
+      const cacheAge = (now - stats.mtime) / (1000 * 60 * 60 * 24); // in days
+      
+      if (cacheAge < 1) {
+        return Promise.resolve(avatarPath);
+      }
+    }
     
+    console.log(`[${this.name}] Fetching avatar from ${avatarUrl}`);
+    
+    // If we have a direct avatar URL, use it
+    if (avatarUrl) {
+      return fetch(avatarUrl)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch avatar: ${res.status} ${res.statusText}`);
+          }
+          return res.buffer();
+        })
+        .then(buffer => {
+          fs.writeFileSync(avatarPath, buffer);
+          console.log(`[${this.name}] Cached avatar for ${token.substring(0, 5)}...`);
+          return avatarPath;
+        })
+        .catch(error => {
+          console.error(`[${this.name}] Error fetching avatar:`, error);
+          // Generate a data URL as fallback if fetch fails
+          return `https://ui-avatars.com/api/?name=${token.substring(0, 2)}&background=random`;
+        });
+    }
+    
+    // Fallback: try to get it from the Todoist API
     return fetch("https://api.todoist.com/rest/v2/user", {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -1426,12 +1473,16 @@ module.exports = NodeHelper.create({
           .then(res => res.buffer())
           .then(buffer => {
             fs.writeFileSync(avatarPath, buffer);
-            console.log(`[${this.name}] Cached avatar for ${token.substring(0, 5)}...`);
+            console.log(`[${this.name}] Cached avatar from API for ${token.substring(0, 5)}...`);
+            return avatarPath;
           });
+      } else {
+        throw new Error("No avatar URL in user data");
       }
     })
     .catch(error => {
-      console.error(`[${this.name}] Error fetching avatar:`, error);
+      console.error(`[${this.name}] Error fetching avatar from API:`, error);
+      return `https://ui-avatars.com/api/?name=${token.substring(0, 2)}&background=random`;
     });
   },
 

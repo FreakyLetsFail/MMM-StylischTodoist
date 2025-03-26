@@ -62,7 +62,7 @@ Module.register("MMM-StylishTodoist", {
   
     getStyles: function() {
       return [
-        "MMM-StylishTodoist.css",
+        "css/MMM-StylishTodoist.css",
         "font-awesome.css",
         "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
       ];

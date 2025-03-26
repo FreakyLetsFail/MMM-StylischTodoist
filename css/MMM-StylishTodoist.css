@@ -136,12 +136,20 @@
     border-left: 3px solid #4caf50;
   }
   
-  .task-avatar {
+  .task-avatar, .todoist-task .task-avatar {
     width: 28px;
     height: 28px;
     border-radius: 50%;
     border: 2px solid var(--todoist-theme-color, #E84C3D);
     flex-shrink: 0;
+    object-fit: cover;
+    overflow: hidden;
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+  
+.task-avatar img, .todoist-task .task-avatar img {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
   }
   
@@ -153,10 +161,21 @@
     gap: 8px;
   }
   
-  .task-priority {
+  .task-priority, .todoist-task .task-priority {
     color: var(--todoist-theme-color, #E84C3D);
     font-size: 0.9em;
     flex-shrink: 0;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+.task-priority i, .todoist-task .task-priority i {
+    font-size: 0.8em;
   }
   
   .task-text {
@@ -196,17 +215,80 @@
     to { opacity: 1; transform: translateY(0); }
   }
   
+  /* Additional classes for TaskBuilder.js */
+  .todoist-task {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+    position: relative;
+    border-left: 3px solid var(--todoist-theme-color, #E84C3D);
+  }
+  
+  .todoist-task:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateX(3px);
+  }
+  
+  .todoist-task .task-content {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .todoist-task .task-title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .todoist-task .task-project {
+    font-size: 0.8em;
+    color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  
+  .todoist-task .task-due-date {
+    font-size: 0.75em;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 2px;
+  }
+  
+  .todoist-task .task-due-date.overdue {
+    color: #ff5252;
+    font-weight: 500;
+  }
+  
+  /* Animation for appearance */
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  
+  .todoist-task {
+    animation: slideIn 0.3s ease forwards;
+  }
+  
   /* Responsive adjustments */
   @media (max-width: 400px) {
     .todoist-wrapper {
       padding: 10px;
     }
     
-    .task {
+    .task, .todoist-task {
       padding: 8px;
     }
     
-    .task-avatar {
+    .task-avatar, .todoist-task .task-avatar {
       width: 24px;
       height: 24px;
     }
