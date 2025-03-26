@@ -14,7 +14,9 @@ Module.register("MMM-StylishTodoist", {
       projects: [],
       customProjectLimits: {},
       dueTasksLimit: 7,
-      apiVersion: "v2"
+      apiVersion: "v2",
+      apiToken: "",   // Add your Todoist API token here
+      dayLimit: 7    // Maximum number of days to show
     },
   
     requiresVersion: "2.15.0",

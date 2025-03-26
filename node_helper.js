@@ -786,8 +786,15 @@ module.exports = NodeHelper.create({
 
     switch (notification) {
       case "CONFIG":
+        // Log the exact config we received
+        console.log(`[${this.name}] Received CONFIG with identifier: ${payload.identifier}`);
+        if (payload.config) {
+          console.log(`[${this.name}] Config details: apiToken present: ${Boolean(payload.config.apiToken)}, updateInterval: ${payload.config.updateInterval}, groupBy: ${payload.config.groupBy}`);
+        }
+        
         // Legacy support - map CONFIG to INIT_TODOIST
         this.initTodoist(payload.identifier || "default", payload.config || payload);
+        
         // Also immediately fetch tasks after initializing
         setTimeout(() => {
           this.refreshTasks(payload.identifier || "default");
@@ -795,7 +802,14 @@ module.exports = NodeHelper.create({
         break;
         
       case "INIT_TODOIST":
+        // Log the exact config we received
+        console.log(`[${this.name}] Received INIT_TODOIST with instance ID: ${payload.instanceId || payload.identifier || "default"}`);
+        if (payload.config) {
+          console.log(`[${this.name}] Config details: apiToken present: ${Boolean(payload.config.apiToken)}, updateInterval: ${payload.config.updateInterval}, groupBy: ${payload.config.groupBy}`);
+        }
+        
         this.initTodoist(payload.instanceId || payload.identifier || "default", payload.config || payload);
+        
         // Also immediately fetch tasks after initializing
         setTimeout(() => {
           this.refreshTasks(payload.instanceId || payload.identifier || "default");
@@ -808,7 +822,9 @@ module.exports = NodeHelper.create({
         
       case "UPDATE_TASKS":
       case "REFRESH_TASKS":
-        this.refreshTasks(payload.instanceId || payload.identifier || "default");
+        const instanceId = payload.instanceId || payload.identifier || "default";
+        console.log(`[${this.name}] Refreshing tasks for instance: ${instanceId}`);
+        this.refreshTasks(instanceId);
         break;
         
       default:
@@ -1008,6 +1024,7 @@ module.exports = NodeHelper.create({
       try {
         const accounts = JSON.parse(fs.readFileSync(accountConfigPath, "utf8"));
         if (Array.isArray(accounts) && accounts.length > 0) {
+          console.log(`[${this.name}] Found ${accounts.length} accounts in ${accountConfigPath}`);
           return accounts;
         }
       } catch (error) {
@@ -1018,7 +1035,11 @@ module.exports = NodeHelper.create({
     // If no accounts in storage, check the module config
     const instance = this.todoistInstances[instanceId];
     if (instance && instance.config) {
+      // Debug the config we received
+      console.log(`[${this.name}] Checking config for API token. Config keys: ${Object.keys(instance.config).join(', ')}`);
+      
       if (instance.config.apiToken) {
+        console.log(`[${this.name}] Using API token from config for ${instanceId}`);
         // Single token in config
         return [{
           token: instance.config.apiToken,
@@ -1027,11 +1048,13 @@ module.exports = NodeHelper.create({
           color: instance.config.themeColor || "#E84C3D"
         }];
       } else if (Array.isArray(instance.config.accounts) && instance.config.accounts.length > 0) {
+        console.log(`[${this.name}] Using ${instance.config.accounts.length} accounts from config for ${instanceId}`);
         // Multiple accounts in config
         return instance.config.accounts;
       }
     }
     
+    console.log(`[${this.name}] No accounts found for ${instanceId} in storage or config`);
     return [];
   },
 

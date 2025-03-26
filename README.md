@@ -26,6 +26,9 @@ Dieses Modul ist ein stilvolles, minimalistisches Todoist-Aufgabenmodul für Mag
        module: "MMM-StylishTodoist",
        position: "top_right",
        config: {
+           // WICHTIG: Trage deinen Todoist API-Token hier ein
+           apiToken: "DEIN_TODOIST_API_TOKEN_HIER_EINFÜGEN",
+           
            // Optional: Passe Konfigurationsoptionen an
            themeColor: "#e84c3d",
            groupBy: "date",
@@ -39,9 +42,16 @@ Dieses Modul ist ein stilvolles, minimalistisches Todoist-Aufgabenmodul für Mag
    pm2 restart MagicMirror
    ```
 
-## Einrichtung deiner Todoist-Konten
+## Wie du deinen Todoist API-Token findest:
 
-Sobald das Modul installiert ist und dein MagicMirror läuft:
+1. Melde dich bei Todoist an
+2. Gehe zu Einstellungen → Integrationen
+3. Scrolle nach unten zum Abschnitt "API token"
+4. Kopiere den Token und füge ihn in deine Konfiguration ein
+
+## Optional: Einrichtung deiner Todoist-Konten über den Setup-Assistenten
+
+Das Modul bietet auch einen Setup-Assistenten für eine erweiterte Konfiguration mit Multi-Account-Unterstützung:
 
 1. Öffne einen Browser und gehe zu `http://DEINE-MIRROR-IP:8080/MMM-StylishTodoist/setup`
    (Wenn dein Mirror lokal läuft, kannst du auch `http://localhost:8080/MMM-StylishTodoist/setup` verwenden)
@@ -56,25 +66,9 @@ Sobald das Modul installiert ist und dein MagicMirror läuft:
    - Eine Kategorie auswählen (Arbeit, Familie, Persönlich, usw.)
    - Ein Symbol/Icon für das Konto wählen
    - Eine Farbe für das Konto festlegen
-   - Deinen Todoist API-Token eingeben (du findest diesen in den Todoist-Einstellungen unter "Integrationen")
+   - Deinen Todoist API-Token eingeben
 
 4. Klicke auf "Konto hinzufügen". Das Konto wird automatisch zu deinem MagicMirror hinzugefügt.
-
-5. Im Tab "Konten verwalten" kannst du:
-   - Die hinzugefügten Konten anzeigen
-   - Konten bearbeiten oder löschen
-
-6. Im Tab "Einstellungen" kannst du:
-   - Die maximale Anzahl der anzuzeigenden Aufgaben festlegen
-
-7. Wiederhole den Vorgang für alle Konten, die du hinzufügen möchtest.
-
-## Wie du deinen Todoist API-Token findest:
-
-1. Melde dich bei Todoist an
-2. Gehe zu Einstellungen → Integrationen
-3. Scrolle nach unten zum Abschnitt "API token"
-4. Kopiere den Token und füge ihn im Setup-Assistenten ein
 
 ## Anpassungsmöglichkeiten
 
@@ -85,65 +79,46 @@ Du kannst das Modul über folgende Konfigurationsoptionen in der `config.js` anp
     module: "MMM-StylishTodoist",
     position: "top_right",
     config: {
-        // Todoist-Konfiguration
-        maximumEntries: 10,            // Maximale Anzahl anzuzeigender Aufgaben
-        groupBy: "date",               // Gruppierungsmodus: "date", "project", "priority", "none"
-        sortType: "date",              // Sortierung: "date", "priority", "project"
-        showCompleted: false,          // Zeige erledigte Aufgaben
-        showOverdue: true,             // Zeige überfällige Aufgaben
+        // API-Konfiguration (erforderlich)
+        apiToken: "DEIN_TODOIST_API_TOKEN",   // Dein Todoist API-Token (erforderlich!)
+        
+        // Allgemeine Konfiguration
+        updateInterval: 10 * 60 * 1000,      // Aktualisierungsintervall (in ms, Standard: 10 Minuten)
+        maximumEntries: 10,                  // Maximale Anzahl anzuzeigender Aufgaben
+        fadeSpeed: 3000,                     // Geschwindigkeit der Überblendungseffekte
+        
+        // Gruppierungs- und Sortieroptionen
+        groupBy: "date",                     // Gruppierungsmodus: "date", "project", "priority", "none"
+        sortBy: "due_date",                  // Sortierung: "due_date", "priority", "project"
+        showCompleted: false,                // Zeige erledigte Aufgaben
+        showOverdue: true,                   // Zeige überfällige Aufgaben
         
         // Visuelle Anpassungen
-        themeColor: "#e84c3d",         // Hauptakzentfarbe
-        colorizeByProject: true,       // Farben für Aufgaben basierend auf Projekt anwenden
-        roundedCorners: true,          // Abgerundete Ecken für UI-Elemente 
-        showHeader: true,              // Header anzeigen
+        themeColor: "#e84c3d",               // Hauptakzentfarbe
+        colorizeByProject: true,             // Farben für Aufgaben basierend auf Projekt anwenden
+        showAvatars: true,                   // Benutzeravatare anzeigen
+        showPriority: true,                  // Prioritätsanzeige einblenden
+        showDividers: true,                  // Trennlinien zwischen Gruppen anzeigen
         
         // Aufgaben-Details
-        showDueDate: true,             // Fälligkeitsdatum anzeigen
-        showDescription: false,        // Aufgabenbeschreibungen anzeigen
-        showProject: true,             // Projektnamen anzeigen
+        showDueDate: true,                   // Fälligkeitsdatum anzeigen
+        showProject: true,                   // Projektnamen anzeigen
         
-        // Animationen
-        animateIn: true,               // Animation beim Anzeigen von Aufgaben
-        fadeAnimations: true,          // Fade-Animationen
-        textAnimations: true,          // Text-Animationen
-        
-        // Weitere Optionen
-        language: config.language,     // Modulsprache (Standardmäßig Systemsprache)
-        dateFormat: "MMM Do",          // Format für Datumsanzeige
-        dayLimit: 7,                   // Maximale Anzahl anzuzeigender Tage (wenn groupBy: "date")
-        showLegend: true,              // Legende mit Projekten anzeigen
+        // Datum und Format
+        dateFormat: "DD.MM.YYYY",            // Format für Datumsanzeige
+        dayLimit: 7,                         // Maximale Anzahl anzuzeigender Tage (wenn groupBy: "date")
+        dueTasksLimit: 7,                    // Maximale Anzahl fälliger Aufgaben
     }
 }
-```
-
-## Dateien und Struktur
-
-Hier ist die Struktur des Moduls:
-
-```
-MMM-StylishTodoist/
-├── MMM-StylishTodoist.js       # Hauptmodulskript
-├── node_helper.js              # Node.js-Helfer für Backend-Operationen
-├── package.json                # Paketinformationen und Abhängigkeiten
-├── README.md                   # Dokumentation
-├── css/
-│   └── MMM-StylishTodoist.css  # Stylesheet für das Modul
-├── public/
-│   └── setup.html              # Setup-Assistent
-├── translations/
-│   ├── de.json                 # Deutsche Übersetzungen
-│   └── en.json                 # Englische Übersetzungen
-└── utils/
-    └── TaskBuilder.js          # Helper für DOM-Erstellung
 ```
 
 ## Fehlerbehebung
 
 Falls Probleme auftreten:
 
-1. **Aufgaben werden nicht angezeigt:**
-   - Überprüfe, ob dein API-Token korrekt ist
+1. **Aufgaben werden nicht angezeigt oder "Wird geladen..." wird ständig angezeigt:**
+   - Überprüfe, ob du deinen API-Token in der Konfiguration angegeben hast
+   - Stelle sicher, dass dein API-Token korrekt ist
    - Stelle sicher, dass du überhaupt Aufgaben in deinem Todoist-Konto hast
    - Schaue in die MagicMirror Logs, um nach Fehlern zu suchen: `pm2 logs MagicMirror`
 
@@ -152,24 +127,11 @@ Falls Probleme auftreten:
    - Überprüfe, ob MagicMirror mit ausreichenden Rechten läuft
 
 3. **Änderungen in Todoist werden nicht angezeigt:**
-   - Das Modul aktualisiert sich standardmäßig alle 60 Sekunden
-   - Änderungen bei Todoist können manchmal einige Zeit brauchen, bis sie über die API verfügbar sind
+   - Das Modul aktualisiert sich standardmäßig alle 10 Minuten
+   - Du kannst das Aktualisierungsintervall durch Ändern von `updateInterval` in deiner Konfiguration anpassen
 
-## Unterstützte Icon-Typen
+## Wichtig: API-Token-Konfiguration
 
-Bei der Kontoeinrichtung kannst du aus folgenden Icons wählen:
-- task (Aufgabe)
-- user (Benutzer)
-- work (Arbeit)
-- family (Familie)
-- personal (Persönlich)
+**Der API-Token muss direkt in deiner MagicMirror `config.js` unter dem Modul-Konfigurationsabschnitt angegeben werden.**
 
-## Unterstützte Kategorien
-
-Vordefinierte Kategorien:
-- Default
-- Work (Arbeit)
-- Family (Familie)
-- Personal (Persönlich)
-
-Du kannst auch eigene benutzerdefinierte Kategorien erstellen!
+Dies ist notwendig, damit das Modul auch ohne Zugriff auf den Setup-Assistenten funktioniert und kann nicht umgangen werden. Die grundlegende Funktionalität des Moduls erfordert diesen direkten API-Zugang.
