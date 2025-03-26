@@ -1104,48 +1104,77 @@
         return;
       }
       
-      const accountData = {
-        name,
-        token,
-        category: finalCategory,
-        icon,
-        color
-      };
-      
-      const addBtn = document.getElementById('add-account');
-      addBtn.disabled = true;
-      addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+      // Verify token is valid first
+      const testBtn = document.getElementById('test-connection');
+      testBtn.disabled = true;
+      testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
       
       try {
-        const response = await fetch('/MMM-StylishTodoist/api/accounts/default', {
+        // First test connection
+        const testResponse = await fetch('/MMM-StylishTodoist/api/test-connection', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(accountData)
+          body: JSON.stringify({ token })
         });
         
-        const data = await response.json();
-        if (data.success) {
-          showAlert('account-alert', 'Account added successfully!', 'success');
-          // Reset form
-          document.getElementById('account-name').value = '';
-          document.getElementById('api-token').value = '';
-          document.getElementById('custom-category').value = '';
-          document.getElementById('account-category').value = 'default';
-          document.getElementById('custom-category-container').style.display = 'none';
+        const testData = await testResponse.json();
+        if (!testData.success || !testData.valid) {
+          showAlert('account-alert', 'Invalid API token. Please check your token and try again.', 'error');
+          return;
+        }
+        
+        // Now add account
+        const accountData = {
+          name,
+          token,
+          category: finalCategory,
+          icon,
+          color
+        };
+        
+        const addBtn = document.getElementById('add-account');
+        addBtn.disabled = true;
+        addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+        
+        try {
+          const response = await fetch('/MMM-StylishTodoist/api/accounts/default', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(accountData)
+          });
           
-          // Reload accounts
-          await loadAccounts();
-        } else {
-          throw new Error(data.error || 'Failed to add account');
+          const data = await response.json();
+          if (data.success) {
+            showAlert('account-alert', 'Account added successfully!', 'success');
+            // Reset form
+            document.getElementById('account-name').value = '';
+            document.getElementById('api-token').value = '';
+            document.getElementById('custom-category').value = '';
+            document.getElementById('account-category').value = 'default';
+            document.getElementById('custom-category-container').style.display = 'none';
+            
+            // Reload accounts
+            await loadAccounts();
+          } else {
+            throw new Error(data.error || 'Failed to add account');
+          }
+        } catch (error) {
+          showAlert('account-alert', `Error adding account: ${error.message}`, 'error');
+          console.error('Error adding account:', error);
+        } finally {
+          addBtn.disabled = false;
+          addBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Account';
         }
       } catch (error) {
-        showAlert('account-alert', `Error adding account: ${error.message}`, 'error');
-        console.error('Error adding account:', error);
+        showAlert('account-alert', `Connection failed: ${error.message}`, 'error');
+        console.error('Connection test failed:', error);
       } finally {
-        addBtn.disabled = false;
-        addBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Account';
+        testBtn.disabled = false;
+        testBtn.innerHTML = '<i class="fas fa-plug"></i> Test Connection';
       }
     }
     

@@ -207,10 +207,12 @@ module.exports = NodeHelper.create({
 
     // Health check endpoint
     this.expressApp.get("/MMM-StylishTodoist/health", (req, res) => {
+      console.log(`[${this.name}] Health check requested from ${req.ip}`); 
       res.json({
         status: "OK",
         module: this.name,
         serverPort: sharedServer?.port || 8200,
+        serverUrl: `http://localhost:${sharedServer?.port || 8200}/MMM-StylishTodoist/setup`,
         accounts: Object.keys(this.accounts).length,
         instances: Object.keys(this.todoistInstances).length
       });
@@ -233,7 +235,10 @@ module.exports = NodeHelper.create({
           return res.status(400).json({ success: false, error: "API token is required" });
         }
         
+        console.log(`[${this.name}] Testing Todoist API connection from ${req.ip}`);
         const isValid = await this.testTodoistConnection(token);
+        console.log(`[${this.name}] Todoist API connection test result: ${isValid ? "success" : "failed"}`);
+        
         res.json({ 
           success: true, 
           valid: isValid,
@@ -275,6 +280,7 @@ module.exports = NodeHelper.create({
 
     // Setup UI
     this.expressApp.get("/MMM-StylishTodoist/setup", (req, res) => {
+      console.log(`[${this.name}] Setup page requested from ${req.ip}`);
       res.sendFile(path.join(this.path, "public", "setup.html"));
     });
 
